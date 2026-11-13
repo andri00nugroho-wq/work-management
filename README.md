@@ -1,45 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# REI Work Management
 
-## Getting Started
+Aplikasi internal untuk mengelola pekerjaan, proyek, tim, dan progres Raja Emas Indonesia.
 
-First, run the development server:
+## Fitur
+
+- Empat tema tampilan: **Terang**, **Gelap**, **Transparan**, dan **Emas**, tersimpan di browser.
+- Login dengan email dan kata sandi, sesi JWT di cookie httpOnly (berlaku 7 hari).
+- Dashboard ringkasan: statistik tugas, progres proyek, beban tim, aktivitas terbaru.
+- Board Kanban dan tabel tugas dengan pencarian, filter status/prioritas, serta detail tugas.
+- Tautan tugas (GitHub, dokumen, desain, referensi) dengan validasi URL HTTP/HTTPS.
+- Riwayat laporan kendala per tugas, dengan bukti gambar/PDF maksimal 10 MB.
+- Peran pengguna: `SUPER_ADMIN`, `SPV`, dan `MEMBER`, dengan divisi dan penanggung jawab.
+
+## Teknologi
+
+- Next.js 16 (App Router, Turbopack) dan React 19
+- TypeScript dan Tailwind CSS v4
+- Prisma ORM dengan PostgreSQL
+- `jose` untuk token sesi dan `bcryptjs` untuk hash kata sandi
+- `styled-jsx` untuk gaya per komponen
+
+## Prasyarat
+
+- Node.js 20 atau lebih baru
+- PostgreSQL 14 atau lebih baru
+
+## Konfigurasi
+
+Buat file `.env` di root proyek:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/rei_work_management?schema=public"
+JWT_SECRET="kunci-acak-minimal-32-karakter"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`JWT_SECRET` wajib diisi dan tidak boleh dibagikan. File `.env` tidak disertakan di repository.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Menjalankan
 
-## Work management
+```bash
+npm install
+npx prisma migrate deploy   # atau: npx prisma migrate dev
+npm run dev
+```
 
-- Dashboard menyediakan pilihan mode terang dan gelap; pilihan tema disimpan di browser.
-- Kartu pada Board Kanban dapat dibuka untuk melihat detail tugas dan mengelola tautan GitHub, dokumen, desain, atau referensi lain.
-- Detail tugas menyimpan riwayat laporan kendala; bukti gambar/PDF maksimal 10 MB bersifat opsional dan disimpan privat.
-- Tautan tugas disimpan di PostgreSQL dan hanya menerima URL HTTP/HTTPS.
+Buka [http://localhost:3000](http://localhost:3000).
 
-Jalankan `npx prisma migrate dev` setelah mengambil perubahan database terbaru.
+Membuat akun Super Admin pertama:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npx tsx scripts/create-super-admin.ts
+```
 
-## Learn More
+## Struktur
 
-To learn more about Next.js, take a look at the following resources:
+- `app/` — halaman, komponen klien dashboard, dan route API (`app/api`)
+- `lib/` — sesi, autentikasi, akses Prisma, dan helper API
+- `prisma/` — schema dan migrasi database
+- `scripts/` — utilitas pembuatan dan reset akun Super Admin
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Pemeriksaan
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npx tsc --noEmit
+npm run lint
+npm run build
+```
