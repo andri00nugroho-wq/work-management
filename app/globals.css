@@ -1,26 +1,363 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   REI design tokens
+   Palet perusahaan: Purple (Primary) + Gold (Secondary), dengan turunan
+   netral yang diberi sedikit tint ungu agar terasa lembut, bukan abu kaku.
+   ========================================================================== */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* Kanvas & permukaan */
+  --rei-bg: #f7f6fd;
+  --rei-surface: #ffffff;
+  --rei-surface-2: #faf9fe;
+  --rei-surface-3: #f3f1fb;
+  --rei-surface-hover: #f4f1fc;
+  --rei-input-bg: #ffffff;
+
+  /* Teks */
+  --rei-text: #211744;
+  --rei-heading: #17083b;
+  --rei-muted: #6e6690;
+  --rei-soft: #8b84a8;
+
+  /* Garis */
+  --rei-border: #e8e4f4;
+  --rei-border-strong: #dcd6ee;
+  --rei-border-soft: #f0edf9;
+
+  /* Aksen utama (Purple 600) */
+  --rei-accent: #5436aa;
+  --rei-accent-hover: #43298b;
+  --rei-accent-contrast: #ffffff;
+  --rei-accent-soft-bg: #eceafe;
+  --rei-accent-soft-text: #371f76;
+
+  /* Aksen sekunder (Gold) */
+  --rei-gold: #d4af37;
+  --rei-gold-text: #966e0e;
+  --rei-gold-soft: #f6efd9;
+
+  /* Warna status */
+  --rei-success-soft: #dcfce7;
+  --rei-success-text: #15803d;
+  --rei-warning-soft: #fef9c3;
+  --rei-warning-text: #a16207;
+  --rei-orange-soft: #ffedd5;
+  --rei-orange-text: #c2410c;
+  --rei-danger-soft: #fee2e2;
+  --rei-danger-text: #b91c1c;
+  --rei-info-soft: #dbeafe;
+  --rei-info-text: #1d4ed8;
+  --rei-neutral-soft: #f3f1fb;
+  --rei-neutral-text: #625b7e;
+
+  /* Pesan */
+  --rei-danger-bg: #fff2f2;
+  --rei-danger-border: #fecaca;
+  --rei-danger-fg: #b91c1c;
+  --rei-success-bg: #f0fdf4;
+  --rei-success-border: #bbf7d0;
+  --rei-success-fg: #15803d;
+
+  /* Elevasi & efek */
+  --rei-chart-track: #ece8f6;
+  --rei-topbar-bg: rgba(255, 255, 255, 0.82);
+  --rei-overlay: rgba(23, 8, 59, 0.45);
+  --rei-shadow: 0 10px 30px rgba(35, 20, 80, 0.08);
+  --rei-shadow-soft: 0 2px 10px rgba(35, 20, 80, 0.05);
+  --rei-shadow-hover: 0 16px 38px rgba(35, 20, 80, 0.14);
+  --rei-sheen: rgba(114, 85, 215, 0.12);
+  --rei-blur: none;
+
+  /* Aurora latar */
+  --rei-aura-1: rgba(114, 85, 215, 0.16);
+  --rei-aura-2: rgba(212, 175, 55, 0.14);
+  --rei-aura-3: rgba(114, 85, 215, 0.09);
+  --rei-aura-strength: 1;
+
+  /* Alias lama agar utility Tailwind tetap bekerja */
+  --background: var(--rei-bg);
+  --foreground: var(--rei-text);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --rei-bg: #0e0626;
+  --rei-surface: #180c3d;
+  --rei-surface-2: #1f1149;
+  --rei-surface-3: #150a34;
+  --rei-surface-hover: #241552;
+  --rei-input-bg: #120830;
+
+  --rei-text: #ede9fb;
+  --rei-heading: #f8f6ff;
+  --rei-muted: #a79fc9;
+  --rei-soft: #8f86b5;
+
+  --rei-border: #2c1d5c;
+  --rei-border-strong: #3a2875;
+  --rei-border-soft: #241650;
+
+  --rei-accent: #7255d7;
+  --rei-accent-hover: #8064e4;
+  --rei-accent-contrast: #ffffff;
+  --rei-accent-soft-bg: rgba(114, 85, 215, 0.24);
+  --rei-accent-soft-text: #d3c8fb;
+
+  --rei-gold: #e1c162;
+  --rei-gold-text: #ead48e;
+  --rei-gold-soft: rgba(212, 175, 55, 0.18);
+
+  --rei-success-soft: rgba(34, 197, 94, 0.16);
+  --rei-success-text: #86efac;
+  --rei-warning-soft: rgba(234, 179, 8, 0.16);
+  --rei-warning-text: #fde047;
+  --rei-orange-soft: rgba(234, 88, 12, 0.2);
+  --rei-orange-text: #fdba74;
+  --rei-danger-soft: rgba(239, 68, 68, 0.18);
+  --rei-danger-text: #fca5a5;
+  --rei-info-soft: rgba(59, 130, 246, 0.2);
+  --rei-info-text: #93c5fd;
+  --rei-neutral-soft: rgba(255, 255, 255, 0.08);
+  --rei-neutral-text: #c4bcdd;
+
+  --rei-danger-bg: rgba(239, 68, 68, 0.12);
+  --rei-danger-border: rgba(239, 68, 68, 0.38);
+  --rei-danger-fg: #fca5a5;
+  --rei-success-bg: rgba(34, 197, 94, 0.12);
+  --rei-success-border: rgba(34, 197, 94, 0.36);
+  --rei-success-fg: #86efac;
+
+  --rei-chart-track: #2a1c58;
+  --rei-topbar-bg: rgba(14, 6, 38, 0.82);
+  --rei-overlay: rgba(4, 1, 16, 0.62);
+  --rei-shadow: 0 16px 44px rgba(0, 0, 0, 0.45);
+  --rei-shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --rei-shadow-hover: 0 22px 54px rgba(0, 0, 0, 0.55);
+  --rei-sheen: rgba(146, 128, 238, 0.16);
+
+  --rei-aura-1: rgba(114, 85, 215, 0.3);
+  --rei-aura-2: rgba(212, 175, 55, 0.12);
+  --rei-aura-3: rgba(114, 85, 215, 0.18);
+}
+
+:root[data-theme="glass"] {
+  color-scheme: dark;
+
+  --rei-bg: #0a0420;
+  --rei-surface: rgba(255, 255, 255, 0.07);
+  --rei-surface-2: rgba(255, 255, 255, 0.1);
+  --rei-surface-3: rgba(255, 255, 255, 0.05);
+  --rei-surface-hover: rgba(255, 255, 255, 0.14);
+  --rei-input-bg: rgba(10, 4, 30, 0.35);
+
+  --rei-text: #f2effc;
+  --rei-heading: #ffffff;
+  --rei-muted: rgba(235, 231, 252, 0.72);
+  --rei-soft: rgba(235, 231, 252, 0.55);
+
+  --rei-border: rgba(255, 255, 255, 0.16);
+  --rei-border-strong: rgba(255, 255, 255, 0.26);
+  --rei-border-soft: rgba(255, 255, 255, 0.1);
+
+  --rei-accent: #7255d7;
+  --rei-accent-hover: #8064e4;
+  --rei-accent-contrast: #ffffff;
+  --rei-accent-soft-bg: rgba(114, 85, 215, 0.28);
+  --rei-accent-soft-text: #d8ceff;
+
+  --rei-gold: #ead48e;
+  --rei-gold-text: #f0e3b8;
+  --rei-gold-soft: rgba(212, 175, 55, 0.18);
+
+  --rei-success-soft: rgba(34, 197, 94, 0.18);
+  --rei-success-text: #86efac;
+  --rei-warning-soft: rgba(234, 179, 8, 0.18);
+  --rei-warning-text: #fde047;
+  --rei-orange-soft: rgba(234, 88, 12, 0.22);
+  --rei-orange-text: #fdba74;
+  --rei-danger-soft: rgba(239, 68, 68, 0.2);
+  --rei-danger-text: #fca5a5;
+  --rei-info-soft: rgba(59, 130, 246, 0.22);
+  --rei-info-text: #93c5fd;
+  --rei-neutral-soft: rgba(255, 255, 255, 0.1);
+  --rei-neutral-text: #d6d0ea;
+
+  --rei-danger-bg: rgba(239, 68, 68, 0.14);
+  --rei-danger-border: rgba(239, 68, 68, 0.4);
+  --rei-danger-fg: #fca5a5;
+  --rei-success-bg: rgba(34, 197, 94, 0.14);
+  --rei-success-border: rgba(34, 197, 94, 0.4);
+  --rei-success-fg: #86efac;
+
+  --rei-chart-track: rgba(255, 255, 255, 0.14);
+  --rei-topbar-bg: rgba(10, 4, 32, 0.55);
+  --rei-overlay: rgba(4, 1, 16, 0.5);
+  --rei-shadow: 0 24px 60px rgba(2, 0, 12, 0.5);
+  --rei-shadow-soft: 0 8px 24px rgba(2, 0, 12, 0.35);
+  --rei-shadow-hover: 0 30px 70px rgba(2, 0, 12, 0.62);
+  --rei-sheen: rgba(255, 255, 255, 0.16);
+  --rei-blur: blur(20px) saturate(150%);
+
+  --rei-aura-1: rgba(114, 85, 215, 0.55);
+  --rei-aura-2: rgba(212, 175, 55, 0.3);
+  --rei-aura-3: rgba(155, 92, 246, 0.32);
+}
+
+:root[data-theme="gold"] {
+  color-scheme: light;
+
+  --rei-bg: #faf6ec;
+  --rei-surface: #fffdf8;
+  --rei-surface-2: #f9f2e2;
+  --rei-surface-3: #f6eedb;
+  --rei-surface-hover: #f7efdd;
+  --rei-input-bg: #fffdf8;
+
+  --rei-text: #2b2036;
+  --rei-heading: #1f1233;
+  --rei-muted: #7b6b73;
+  --rei-soft: #97877e;
+
+  --rei-border: #eadfc8;
+  --rei-border-strong: #e0d1b4;
+  --rei-border-soft: #f2e9d6;
+
+  --rei-accent: #5436aa;
+  --rei-accent-hover: #43298b;
+  --rei-accent-contrast: #ffffff;
+  --rei-accent-soft-bg: #eceafe;
+  --rei-accent-soft-text: #371f76;
+
+  --rei-gold: #d4af37;
+  --rei-gold-text: #966e0e;
+  --rei-gold-soft: #f6efd9;
+
+  --rei-success-soft: #dcfce7;
+  --rei-success-text: #15803d;
+  --rei-warning-soft: #fef9c3;
+  --rei-warning-text: #a16207;
+  --rei-orange-soft: #ffedd5;
+  --rei-orange-text: #c2410c;
+  --rei-danger-soft: #fee2e2;
+  --rei-danger-text: #b91c1c;
+  --rei-info-soft: #dbeafe;
+  --rei-info-text: #1d4ed8;
+  --rei-neutral-soft: #f6efd9;
+  --rei-neutral-text: #7a6a4f;
+
+  --rei-danger-bg: #fff2f2;
+  --rei-danger-border: #fecaca;
+  --rei-danger-fg: #b91c1c;
+  --rei-success-bg: #f0fdf4;
+  --rei-success-border: #bbf7d0;
+  --rei-success-fg: #15803d;
+
+  --rei-chart-track: #eee4ce;
+  --rei-topbar-bg: rgba(255, 253, 248, 0.85);
+  --rei-overlay: rgba(37, 18, 2, 0.42);
+  --rei-shadow: 0 10px 30px rgba(74, 47, 12, 0.1);
+  --rei-shadow-soft: 0 2px 10px rgba(74, 47, 12, 0.06);
+  --rei-shadow-hover: 0 16px 38px rgba(74, 47, 12, 0.16);
+  --rei-sheen: rgba(212, 175, 55, 0.18);
+
+  --rei-aura-1: rgba(212, 175, 55, 0.24);
+  --rei-aura-2: rgba(84, 54, 170, 0.12);
+  --rei-aura-3: rgba(212, 175, 55, 0.14);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--rei-bg);
+  --color-foreground: var(--rei-text);
+  --color-primary: var(--rei-accent);
+  --color-gold: var(--rei-gold);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  min-height: 100%;
+  margin: 0;
+  background-color: var(--rei-bg);
+  color: var(--rei-text);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.45s ease, color 0.3s ease;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--rei-accent) 26%, transparent);
+  color: var(--rei-heading);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--rei-accent) 40%, transparent)
+    transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--rei-accent) 38%, transparent);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--rei-accent) 60%, transparent);
+  background-clip: content-box;
+}
+
+@keyframes rei-aura {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(4vmax, -3vmax, 0) scale(1.08) rotate(8deg);
+  }
+  100% {
+    transform: translate3d(-3vmax, 4vmax, 0) scale(1.14) rotate(-6deg);
+  }
+}
+
+@keyframes rei-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
