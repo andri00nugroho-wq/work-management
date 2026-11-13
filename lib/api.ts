@@ -48,6 +48,7 @@ export function taskScope(user: SessionUser): Prisma.TaskWhereInput {
     { assigneeId: user.id },
     { creatorId: user.id },
     { assignments: { some: { userId: user.id } } },
+    { tags: { some: { userId: user.id } } },
   ];
 
   if (user.role === UserRole.SPV) {
@@ -64,7 +65,17 @@ export const TASK_INCLUDE = {
   project: { select: { id: true, name: true } },
   division: { select: { name: true } },
   assignee: { select: { id: true, name: true } },
+  creator: { select: { id: true, name: true } },
   links: { orderBy: { createdAt: "asc" as const } },
+  tags: {
+    orderBy: { createdAt: "asc" as const },
+    select: {
+      id: true,
+      createdAt: true,
+      user: { select: { id: true, name: true } },
+      taggedBy: { select: { name: true } },
+    },
+  },
   issueReports: {
     orderBy: { createdAt: "desc" as const },
     select: {

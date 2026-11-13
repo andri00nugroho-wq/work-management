@@ -33,6 +33,13 @@ type DashboardUser = {
   role: UserRole;
 };
 
+type TaskTag = {
+  id: string;
+  createdAt: string;
+  user: { id: string; name: string };
+  taggedBy: { name: string };
+};
+
 type Task = {
   id: string;
   title: string;
@@ -43,7 +50,9 @@ type Task = {
   project?: { id?: string; name: string } | null;
   division?: { name: string } | null;
   assignee?: { id?: string; name: string } | null;
+  creator?: { id?: string; name: string } | null;
   links?: TaskLink[];
+  tags?: TaskTag[];
   issueReports?: TaskIssueReport[];
 };
 
@@ -84,6 +93,67 @@ type DashboardData = {
   }>;
 };
 
+type ChatAttachment = {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  url: string;
+};
+
+type ChatMessage = {
+  id: string;
+  conversationId: string;
+  body: string | null;
+  createdAt: string;
+  sender: { id: string; name: string };
+  attachments: ChatAttachment[];
+};
+
+type ChatConversation = {
+  id: string;
+  kind: "DIRECT" | "GROUP";
+  name: string | null;
+  title: string;
+  updatedAt: string;
+  members: Array<{ id: string; name: string; role: UserRole }>;
+  lastMessage: {
+    id: string;
+    preview: string;
+    createdAt: string;
+    senderName: string;
+    attachmentCount: number;
+  } | null;
+  unreadCount: number;
+};
+
+type ChatStatus = "AVAILABLE" | "MEETING" | "LEAVE" | "SLOW_RESPONSE";
+
+type ChatPresenceUser = {
+  id: string;
+  name: string;
+  role: UserRole;
+  division: string | null;
+  status: ChatStatus;
+  note: string | null;
+  online: boolean;
+};
+
+const CHAT_STATUS_META: Record<
+  ChatStatus,
+  { label: string; short: string; icon: string; tone: string }
+> = {
+  AVAILABLE: { label: "Tersedia", short: "Tersedia", icon: "●", tone: "available" },
+  MEETING: { label: "Sedang rapat", short: "Rapat", icon: "◷", tone: "meeting" },
+  LEAVE: { label: "Cuti / libur", short: "Cuti", icon: "⌂", tone: "leave" },
+  SLOW_RESPONSE: {
+    label: "Lambat merespons",
+    short: "Lambat",
+    icon: "…",
+    tone: "slow",
+  },
+};
+
 const MENU = [
   { name: "Dashboard", icon: "▦" },
   { name: "Proyek", icon: "▤" },
@@ -91,6 +161,7 @@ const MENU = [
   { name: "Board Kanban", icon: "▥" },
   { name: "Tim", icon: "♙" },
   { name: "Laporan", icon: "▤" },
+  { name: "Chat", icon: "✉" },
 ];
 
 const THEMES: Array<{
@@ -156,6 +227,40 @@ function formatFileSize(value: number) {
   return value < 1024 * 1024
     ? `${Math.max(1, Math.round(value / 1024))} KB`
     : `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatChatStamp(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const time = new Intl.DateTimeFormat("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+  if (date.toDateString() === now.toDateString()) return time;
+  const day = new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "short",
+  }).format(date);
+  return `${day} · ${time}`;
+}
+
+function isImageMime(mimeType: string) {
+  return [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/avif",
+  ].includes(mimeType);
+}
+
+function chatPreviewFromMessage(message: ChatMessage) {
+  const text = message.body?.replace(/\s+/g, " ").trim();
+  if (text) return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+  if (message.attachments.length === 1) return message.attachments[0].name;
+  if (message.attachments.length > 1) return `${message.attachments.length} berkas`;
+  return "";
 }
 
 function initials(name: string) {
@@ -308,6 +413,42 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const [issueError, setIssueError] = useState("");
   const [savingIssue, setSavingIssue] = useState(false);
   const [issueFileInputKey, setIssueFileInputKey] = useState(0);
+  const [tagUserId, setTagUserId] = useState("");
+  const [tagBusy, setTagBusy] = useState(false);
+  const [tagError, setTagError] = useState("");
+  const [tagNotice, setTagNotice] = useState("");
+
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatHasMore, setChatHasMore] = useState(false);
+  const [chatLoading, setChatLoading] = useState(true);
+  const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
+  const [chatError, setChatError] = useState("");
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatFiles, setChatFiles] = useState<File[]>([]);
+  const [chatDragging, setChatDragging] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
+  const [chatLive, setChatLive] = useState<"connecting" | "online" | "offline">(
+    "connecting"
+  );
+  const [chatSearch, setChatSearch] = useState("");
+  const [showChatCreate, setShowChatCreate] = useState(false);
+  const [chatCreateMembers, setChatCreateMembers] = useState<string[]>([]);
+  const [chatCreateName, setChatCreateName] = useState("");
+  const [chatCreateBusy, setChatCreateBusy] = useState(false);
+  const [chatCreateError, setChatCreateError] = useState("");
+  const [presenceUsers, setPresenceUsers] = useState<ChatPresenceUser[]>([]);
+  const [chatStatus, setChatStatus] = useState<ChatStatus>("AVAILABLE");
+  const [chatStatusNote, setChatStatusNote] = useState("");
+  const [chatStatusBusy, setChatStatusBusy] = useState(false);
+  const [showChatTeam, setShowChatTeam] = useState(false);
+  const [chatTeamSearch, setChatTeamSearch] = useState("");
+  const [chatTeamBusyId, setChatTeamBusyId] = useState<string | null>(null);
+  const [chatTeamError, setChatTeamError] = useState("");
+  const activeConversationRef = useRef<string | null>(null);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const chatFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -448,6 +589,549 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     void refresh();
   }, [refresh]);
 
+  /* ---------- Chat ---------- */
+
+  const chatUnreadTotal = useMemo(
+    () => conversations.reduce((sum, conversation) => sum + conversation.unreadCount, 0),
+    [conversations]
+  );
+
+  const loadChatConversations = useCallback(async (silent = false) => {
+    try {
+      const result = await request<{ conversations: ChatConversation[] }>(
+        "/api/chat/conversations",
+        { method: "GET" },
+        "Gagal mengambil percakapan."
+      );
+      setConversations(result.conversations ?? []);
+    } catch (err) {
+      if (!silent) {
+        setChatError(
+          err instanceof Error ? err.message : "Gagal memuat percakapan."
+        );
+      }
+    } finally {
+      setChatLoading(false);
+    }
+  }, []);
+
+  const loadChatPresence = useCallback(
+    async (silent = false) => {
+      try {
+        const result = await request<{ users: ChatPresenceUser[] }>(
+          "/api/chat/presence",
+          { method: "GET" },
+          "Gagal mengambil status tim."
+        );
+        const users = result.users ?? [];
+        setPresenceUsers(users);
+        const me = users.find((item) => item.id === user.id);
+        if (me) {
+          setChatStatus(me.status);
+          setChatStatusNote(me.note ?? "");
+        }
+      } catch (err) {
+        if (!silent) {
+          setChatTeamError(
+            err instanceof Error ? err.message : "Gagal memuat status tim."
+          );
+        }
+      }
+    },
+    [user.id]
+  );
+
+  const markConversationRead = useCallback(async (conversationId: string) => {
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === conversationId && conversation.unreadCount > 0
+          ? { ...conversation, unreadCount: 0 }
+          : conversation
+      )
+    );
+    try {
+      await fetch(`/api/chat/conversations/${conversationId}/read`, {
+        method: "POST",
+        cache: "no-store",
+      });
+    } catch {
+      // Status baca akan disinkronkan saat percakapan dibuka kembali.
+    }
+  }, []);
+
+  const loadChatMessages = useCallback(
+    async (
+      conversationId: string,
+      options: { before?: string; silent?: boolean } = {}
+    ) => {
+      const { before, silent = false } = options;
+      try {
+        const query = before ? `?before=${encodeURIComponent(before)}` : "";
+        const result = await request<{
+          messages: ChatMessage[];
+          hasMore: boolean;
+        }>(
+          `/api/chat/conversations/${conversationId}/messages${query}`,
+          { method: "GET" },
+          "Gagal memuat pesan."
+        );
+        setChatMessages((prev) => {
+          if (!before) return result.messages;
+          const existing = new Set(prev.map((message) => message.id));
+          return [
+            ...result.messages.filter((message) => !existing.has(message.id)),
+            ...prev,
+          ];
+        });
+        setChatHasMore(result.hasMore);
+        if (!before) void markConversationRead(conversationId);
+      } catch (err) {
+        if (!silent) {
+          setChatError(
+            err instanceof Error ? err.message : "Gagal memuat pesan."
+          );
+        }
+      } finally {
+        if (!before) setChatMessagesLoading(false);
+      }
+    },
+    [markConversationRead]
+  );
+
+  const appendChatMessage = useCallback(
+    (message: ChatMessage) => {
+      const isActive = activeConversationRef.current === message.conversationId;
+      setChatMessages((prev) =>
+        isActive && !prev.some((item) => item.id === message.id)
+          ? [...prev, message]
+          : prev
+      );
+      setConversations((prev) => {
+        const index = prev.findIndex(
+          (conversation) => conversation.id === message.conversationId
+        );
+        if (index === -1) {
+          void loadChatConversations(true);
+          return prev;
+        }
+        const next = prev.map((conversation) =>
+          conversation.id === message.conversationId
+            ? {
+                ...conversation,
+                updatedAt: message.createdAt,
+                lastMessage: {
+                  id: message.id,
+                  preview: chatPreviewFromMessage(message),
+                  createdAt: message.createdAt,
+                  senderName: message.sender.name,
+                  attachmentCount: message.attachments.length,
+                },
+                unreadCount:
+                  isActive || message.sender.id === user.id
+                    ? 0
+                    : conversation.unreadCount + 1,
+              }
+            : conversation
+        );
+        next.sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+        return next;
+      });
+      if (isActive && message.sender.id !== user.id) {
+        void markConversationRead(message.conversationId);
+      }
+    },
+    [loadChatConversations, markConversationRead, user.id]
+  );
+
+  const openConversation = useCallback(
+    (conversationId: string) => {
+      activeConversationRef.current = conversationId;
+      setActiveConversationId(conversationId);
+      setChatMessages([]);
+      setChatHasMore(false);
+      setChatMessagesLoading(true);
+      setChatError("");
+      setChatFiles([]);
+      void loadChatMessages(conversationId);
+    },
+    [loadChatMessages]
+  );
+
+  // Muat daftar percakapan saat aplikasi dibuka agar badge belum dibaca langsung tampil,
+  // lalu segarkan tanpa mode senyap ketika menu Chat dibuka.
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadChatConversations(activeMenu !== "Chat");
+      void loadChatPresence(true);
+    });
+  }, [activeMenu, loadChatConversations, loadChatPresence]);
+
+  // Koneksi real-time (SSE) untuk semua percakapan pengguna.
+  useEffect(() => {
+    let source: EventSource | null = null;
+    let retry: number | null = null;
+    let disposed = false;
+
+    function connect() {
+      source = new EventSource("/api/chat/stream");
+
+      source.addEventListener("ready", () => setChatLive("online"));
+
+      source.addEventListener("message", (event) => {
+        try {
+          const message = JSON.parse((event as MessageEvent).data) as ChatMessage;
+          setChatLive("online");
+          appendChatMessage(message);
+        } catch {
+          // Abaikan payload yang tidak valid.
+        }
+      });
+
+      source.addEventListener("conversation", () => {
+        void loadChatConversations(true);
+      });
+
+      source.addEventListener("presence", (event) => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data) as {
+            onlineUserIds?: string[];
+          };
+          const online = new Set(payload.onlineUserIds ?? []);
+          setPresenceUsers((prev) =>
+            prev.map((member) => ({ ...member, online: online.has(member.id) }))
+          );
+        } catch {
+          // Abaikan payload yang tidak valid.
+        }
+        void loadChatPresence(true);
+      });
+
+      source.onerror = () => {
+        setChatLive("offline");
+        source?.close();
+        source = null;
+        if (!disposed) {
+          retry = window.setTimeout(() => {
+            setChatLive("connecting");
+            connect();
+          }, 5000);
+        }
+      };
+    }
+
+    connect();
+
+    return () => {
+      disposed = true;
+      if (retry) window.clearTimeout(retry);
+      source?.close();
+    };
+  }, [appendChatMessage, loadChatConversations, loadChatPresence]);
+
+  // Saat real-time terputus, sinkronkan daftar dan pesan secara berkala.
+  useEffect(() => {
+    if (chatLive !== "offline") return;
+    const timer = window.setInterval(() => {
+      void loadChatConversations(true);
+      void loadChatPresence(true);
+      if (activeConversationRef.current) {
+        void loadChatMessages(activeConversationRef.current, { silent: true });
+      }
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [chatLive, loadChatConversations, loadChatPresence, loadChatMessages]);
+
+  useEffect(() => {
+    const node = chatScrollRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [chatMessages, activeConversationId, chatMessagesLoading]);
+
+  useEffect(() => {
+    if (!showChatCreate && !showChatTeam) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setShowChatCreate(false);
+        setShowChatTeam(false);
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [showChatCreate, showChatTeam]);
+
+  const filteredConversations = useMemo(() => {
+    const query = chatSearch.trim().toLowerCase();
+    if (!query) return conversations;
+    return conversations.filter((conversation) =>
+      [conversation.title, ...conversation.members.map((member) => member.name)]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [conversations, chatSearch]);
+
+  const activeConversation = useMemo(
+    () =>
+      conversations.find(
+        (conversation) => conversation.id === activeConversationId
+      ) ?? null,
+    [conversations, activeConversationId]
+  );
+
+  const presenceById = useMemo(() => {
+    const map = new Map<string, ChatPresenceUser>();
+    for (const person of presenceUsers) map.set(person.id, person);
+    return map;
+  }, [presenceUsers]);
+
+  const onlineCount = useMemo(
+    () => presenceUsers.filter((person) => person.online).length,
+    [presenceUsers]
+  );
+
+  const activePartner =
+    activeConversation?.kind === "DIRECT"
+      ? activeConversation.members.find((member) => member.id !== user.id) ?? null
+      : null;
+  const activePartnerPresence = activePartner
+    ? presenceById.get(activePartner.id) ?? null
+    : null;
+
+  const activeOnlineCount = activeConversation
+    ? activeConversation.members.filter(
+        (member) => presenceById.get(member.id)?.online
+      ).length
+    : 0;
+
+  const filteredTeam = useMemo(() => {
+    const query = chatTeamSearch.trim().toLowerCase();
+    const others = presenceUsers
+      .filter((person) => person.id !== user.id)
+      .sort((a, b) => {
+        if (a.online !== b.online) return a.online ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+    if (!query) return others;
+    return others.filter((person) =>
+      [person.name, person.division ?? "", CHAT_STATUS_META[person.status].label]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [presenceUsers, chatTeamSearch, user.id]);
+
+  const canEditSelectedTask = Boolean(
+    selectedTask &&
+      (canManageTasks ||
+        selectedTask.assignee?.id === user.id ||
+        selectedTask.creator?.id === user.id)
+  );
+
+  const availableTagMembers = useMemo(() => {
+    const tagged = new Set((selectedTask?.tags ?? []).map((tag) => tag.user.id));
+    return members.filter((member) => member.id !== user.id && !tagged.has(member.id));
+  }, [members, selectedTask, user.id]);
+
+  function openChatCreate() {
+    setShowChatCreate(true);
+    setChatCreateError("");
+    setChatCreateMembers([]);
+    setChatCreateName("");
+    if (members.length === 0) {
+      (async () => {
+        try {
+          const result = await request<unknown>("/api/users", { method: "GET" });
+          setMembers(pickList<Member>(result, "users"));
+        } catch {
+          setChatCreateError("Gagal memuat daftar anggota.");
+        }
+      })();
+    }
+  }
+
+  async function createConversation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (chatCreateMembers.length === 0) {
+      setChatCreateError("Pilih minimal satu anggota.");
+      return;
+    }
+
+    setChatCreateBusy(true);
+    setChatCreateError("");
+
+    try {
+      const result = await request<{ conversation: ChatConversation }>(
+        "/api/chat/conversations",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            memberIds: chatCreateMembers,
+            name:
+              chatCreateMembers.length > 1 ? chatCreateName.trim() : undefined,
+          }),
+        },
+        "Percakapan gagal dibuat."
+      );
+
+      setConversations((prev) => [
+        result.conversation,
+        ...prev.filter((item) => item.id !== result.conversation.id),
+      ]);
+      setShowChatCreate(false);
+      openConversation(result.conversation.id);
+    } catch (err) {
+      setChatCreateError(
+        err instanceof Error ? err.message : "Percakapan gagal dibuat."
+      );
+    } finally {
+      setChatCreateBusy(false);
+    }
+  }
+
+  function openChatTeam() {
+    setShowChatTeam(true);
+    setChatTeamSearch("");
+    setChatTeamError("");
+    void loadChatPresence();
+  }
+
+  async function saveChatStatus(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (chatStatusBusy) return;
+
+    setChatStatusBusy(true);
+    setChatTeamError("");
+
+    try {
+      const result = await request<{
+        user: { id: string; status: ChatStatus; note: string | null };
+      }>(
+        "/api/chat/presence",
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status: chatStatus, note: chatStatusNote }),
+        },
+        "Status gagal disimpan."
+      );
+
+      setChatStatus(result.user.status);
+      setChatStatusNote(result.user.note ?? "");
+      setPresenceUsers((prev) =>
+        prev.map((person) =>
+          person.id === result.user.id
+            ? { ...person, status: result.user.status, note: result.user.note }
+            : person
+        )
+      );
+    } catch (err) {
+      setChatTeamError(
+        err instanceof Error ? err.message : "Status gagal disimpan."
+      );
+    } finally {
+      setChatStatusBusy(false);
+    }
+  }
+
+  async function openDirectChat(memberId: string) {
+    if (chatTeamBusyId) return;
+    setChatTeamBusyId(memberId);
+    setChatTeamError("");
+
+    try {
+      const result = await request<{ conversation: ChatConversation }>(
+        "/api/chat/conversations",
+        {
+          method: "POST",
+          body: JSON.stringify({ memberIds: [memberId] }),
+        },
+        "Percakapan gagal dibuka."
+      );
+
+      setShowChatTeam(false);
+      setConversations((prev) => [
+        result.conversation,
+        ...prev.filter((item) => item.id !== result.conversation.id),
+      ]);
+      openConversation(result.conversation.id);
+    } catch (err) {
+      setChatTeamError(
+        err instanceof Error ? err.message : "Percakapan gagal dibuka."
+      );
+    } finally {
+      setChatTeamBusyId(null);
+    }
+  }
+
+  function pickChatFiles(list: FileList | File[]) {
+    const incoming = Array.from(list);
+    if (incoming.length === 0) return;
+
+    const tooLarge = incoming.find((file) => file.size > 50 * 1024 * 1024);
+    if (tooLarge) {
+      setChatError(`Berkas "${tooLarge.name}" melebihi 50 MB.`);
+      return;
+    }
+
+    setChatError("");
+    setChatFiles((prev) => [...prev, ...incoming].slice(0, 10));
+  }
+
+  async function sendChatMessage(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    const conversationId = activeConversationRef.current;
+    const text = chatDraft.trim();
+    if (!conversationId || chatSending || (!text && chatFiles.length === 0)) return;
+
+    setChatSending(true);
+    setChatError("");
+
+    try {
+      let message: ChatMessage;
+
+      if (chatFiles.length > 0) {
+        const form = new FormData();
+        form.set("body", text);
+        chatFiles.forEach((file) => form.append("files", file));
+        const result = await request<{ message: ChatMessage }>(
+          `/api/chat/conversations/${conversationId}/messages`,
+          { method: "POST", body: form },
+          "Pesan gagal dikirim."
+        );
+        message = result.message;
+      } else {
+        const result = await request<{ message: ChatMessage }>(
+          `/api/chat/conversations/${conversationId}/messages`,
+          { method: "POST", body: JSON.stringify({ body: text }) },
+          "Pesan gagal dikirim."
+        );
+        message = result.message;
+      }
+
+      setChatDraft("");
+      setChatFiles([]);
+      if (chatFileInputRef.current) chatFileInputRef.current.value = "";
+      appendChatMessage(message);
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : "Pesan gagal dikirim.");
+    } finally {
+      setChatSending(false);
+    }
+  }
+
+  function handleChatComposerKeyDown(
+    event: React.KeyboardEvent<HTMLTextAreaElement>
+  ) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void sendChatMessage();
+    }
+  }
+
   // Isi pilihan "Penanggung jawab" dan "Proyek" saat form tugas dibuka.
   useEffect(() => {
     if (!showForm) return;
@@ -472,7 +1156,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const isMine = useCallback(
     (task: Task) =>
       (task.assignee?.id && task.assignee.id === user.id) ||
-      task.assignee?.name === user.name,
+      task.assignee?.name === user.name ||
+      Boolean(task.tags?.some((tag) => tag.user.id === user.id)),
     [user.id, user.name]
   );
 
@@ -621,6 +1306,14 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     setNewTaskLink({ label: "", url: "" });
     setLinkError("");
     setLinkNotice("");
+    setTagUserId("");
+    setTagError("");
+    setTagNotice("");
+    if (members.length === 0) {
+      void request<unknown>("/api/users", { method: "GET" }, "Gagal memuat anggota tim.")
+        .then((result) => setMembers(pickList<Member>(result, "users")))
+        .catch(() => {});
+    }
   }
 
   function addTaskLink(event: React.FormEvent<HTMLFormElement>) {
@@ -737,6 +1430,78 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       );
     } finally {
       setSavingIssue(false);
+    }
+  }
+
+  function applyTaskTags(taskId: string, nextTags: TaskTag[]) {
+    const patchTask = (list: Task[]) =>
+      list.map((task) => (task.id === taskId ? { ...task, tags: nextTags } : task));
+
+    setAllTasks(patchTask);
+    setData((previous) => ({
+      ...previous,
+      recentTasks: previous.recentTasks
+        ? patchTask(previous.recentTasks)
+        : previous.recentTasks,
+      tasks: previous.tasks ? patchTask(previous.tasks) : previous.tasks,
+    }));
+    setSelectedTask((previous) =>
+      previous && previous.id === taskId ? { ...previous, tags: nextTags } : previous
+    );
+  }
+
+  async function addTaskTag(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTask || !tagUserId || tagBusy) return;
+
+    const target = members.find((member) => member.id === tagUserId);
+    setTagBusy(true);
+    setTagError("");
+    setTagNotice("");
+    try {
+      const result = await request<{ tags: TaskTag[]; added: boolean }>(
+        `/api/tasks/${selectedTask.id}/tags`,
+        { method: "POST", body: JSON.stringify({ userId: tagUserId }) },
+        "Rekan gagal ditandai."
+      );
+      applyTaskTags(selectedTask.id, result.tags);
+      setTagUserId("");
+      setTagNotice(
+        result.added
+          ? `${target?.name ?? "Rekan"} sekarang bisa melihat tugas ini.`
+          : `${target?.name ?? "Rekan"} sudah ditandai sebelumnya.`
+      );
+    } catch (err) {
+      setTagError(err instanceof Error ? err.message : "Gagal menandai rekan.");
+    } finally {
+      setTagBusy(false);
+    }
+  }
+
+  async function removeTaskTag(memberId: string) {
+    if (!selectedTask || tagBusy) return;
+
+    const targetName =
+      selectedTask.tags?.find((tag) => tag.user.id === memberId)?.user.name ?? "Rekan";
+    setTagBusy(true);
+    setTagError("");
+    setTagNotice("");
+    try {
+      const result = await request<{ tags: TaskTag[]; removed: boolean }>(
+        `/api/tasks/${selectedTask.id}/tags?userId=${encodeURIComponent(memberId)}`,
+        { method: "DELETE" },
+        "Tanda rekan gagal dilepas."
+      );
+      applyTaskTags(selectedTask.id, result.tags);
+      setTagNotice(
+        result.removed
+          ? `${targetName} tidak lagi ditandai pada tugas ini.`
+          : `${targetName} memang belum ditandai.`
+      );
+    } catch (err) {
+      setTagError(err instanceof Error ? err.message : "Gagal melepas tanda rekan.");
+    } finally {
+      setTagBusy(false);
     }
   }
 
@@ -1077,6 +1842,11 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                   {myTasksCount}
                 </span>
               )}
+              {item.name === "Chat" && chatUnreadTotal > 0 && (
+                <span className="nav-count nav-count-alert">
+                  {chatUnreadTotal > 99 ? "99+" : chatUnreadTotal}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -1207,9 +1977,11 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
             </div>
 
             <div className="welcome-actions">
-              <button className="secondary-button" onClick={exportTasks}>
-                ↓ Ekspor CSV
-              </button>
+              {activeMenu !== "Chat" && (
+                <button className="secondary-button" onClick={exportTasks}>
+                  ↓ Ekspor CSV
+                </button>
+              )}
               {primaryAction && (
                 <button className="primary-button" onClick={primaryAction.onClick}>
                   {primaryAction.label}
@@ -1978,6 +2750,703 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
             </>
           )}
 
+          {/* ============ CHAT ============ */}
+          {activeMenu === "Chat" && (
+            <section className="panel chat-panel">
+              {chatError && (
+                <div className="message error-message chat-error" role="alert">
+                  <span>{chatError}</span>
+                  <button onClick={() => setChatError("")} aria-label="Tutup pesan">
+                    ×
+                  </button>
+                </div>
+              )}
+
+              <div className={`chat-layout ${activeConversation ? "has-active" : ""}`}>
+                <aside className="chat-sidebar">
+                  <div className="chat-sidebar-head">
+                    <div>
+                      <h2>Pesan</h2>
+                      <p>
+                        {conversations.length} percakapan
+                        <span className={`chat-live chat-live-${chatLive}`}>
+                          {chatLive === "online"
+                            ? "Real-time aktif"
+                            : chatLive === "connecting"
+                              ? "Menyambung..."
+                              : "Offline"}
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="primary-button chat-new"
+                      onClick={openChatCreate}
+                    >
+                      ＋ Baru
+                    </button>
+                  </div>
+
+                  <div className="chat-presence-bar">
+                    <button
+                      type="button"
+                      className={`chat-self-status tone-${CHAT_STATUS_META[chatStatus].tone}`}
+                      onClick={openChatTeam}
+                      title="Atur status kehadiran Anda"
+                    >
+                      <span className="chat-status-icon">
+                        {CHAT_STATUS_META[chatStatus].icon}
+                      </span>
+                      <span className="chat-self-status-text">
+                        <small>Status saya</small>
+                        <strong>{CHAT_STATUS_META[chatStatus].label}</strong>
+                      </span>
+                      <span className="chat-self-status-edit">Ubah</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="chat-team-button"
+                      onClick={openChatTeam}
+                      title="Lihat siapa yang online"
+                    >
+                      <span className="chat-presence-dot online" />
+                      <span>
+                        {onlineCount} <small>online</small>
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="search-box chat-search">
+                    <span>⌕</span>
+                    <input
+                      value={chatSearch}
+                      onChange={(event) => setChatSearch(event.target.value)}
+                      placeholder="Cari percakapan..."
+                      aria-label="Cari percakapan"
+                    />
+                  </div>
+
+                  <div className="chat-conversation-list">
+                    {chatLoading && conversations.length === 0 && (
+                      <div className="chat-list-empty">Memuat percakapan...</div>
+                    )}
+                    {!chatLoading && filteredConversations.length === 0 && (
+                      <div className="chat-list-empty">
+                        Belum ada percakapan.
+                        <button type="button" className="text-button" onClick={openChatCreate}>
+                          Mulai sekarang →
+                        </button>
+                      </div>
+                    )}
+                    {filteredConversations.map((conversation) => {
+                      const partner =
+                        conversation.kind === "DIRECT"
+                          ? conversation.members.find(
+                              (member) => member.id !== user.id
+                            ) ?? null
+                          : null;
+                      const partnerPresence = partner
+                        ? presenceById.get(partner.id) ?? null
+                        : null;
+                      const partnerStatus = partnerPresence
+                        ? CHAT_STATUS_META[partnerPresence.status]
+                        : null;
+
+                      return (
+                        <button
+                          key={conversation.id}
+                          type="button"
+                          className={`chat-conversation ${
+                            conversation.id === activeConversationId ? "active" : ""
+                          } ${conversation.unreadCount > 0 ? "unread" : ""}`}
+                          onClick={() => openConversation(conversation.id)}
+                        >
+                          <span className="chat-conversation-avatar">
+                            {conversation.kind === "GROUP"
+                              ? "◍"
+                              : initials(conversation.title)}
+                            {partnerPresence?.online && (
+                              <span
+                                className="chat-presence-dot online"
+                                title="Online"
+                                aria-label="Online"
+                              />
+                            )}
+                          </span>
+                          <span className="chat-conversation-body">
+                            <span className="chat-conversation-top">
+                              <strong>{conversation.title}</strong>
+                              <time>
+                                {conversation.lastMessage
+                                  ? formatChatStamp(conversation.lastMessage.createdAt)
+                                  : ""}
+                              </time>
+                            </span>
+                            <span className="chat-conversation-bottom">
+                              {partnerPresence &&
+                                partnerStatus &&
+                                partnerPresence.status !== "AVAILABLE" && (
+                                  <span
+                                    className={`chat-status-chip tone-${partnerStatus.tone}`}
+                                    title={
+                                      partnerPresence.note ?? partnerStatus.label
+                                    }
+                                  >
+                                    {partnerStatus.short}
+                                  </span>
+                                )}
+                              <small>
+                                {conversation.lastMessage
+                                  ? `${conversation.lastMessage.senderName}: ${conversation.lastMessage.preview}`
+                                  : "Belum ada pesan"}
+                              </small>
+                              {conversation.unreadCount > 0 && (
+                                <span className="chat-unread">
+                                  {conversation.unreadCount > 99
+                                    ? "99+"
+                                    : conversation.unreadCount}
+                                </span>
+                              )}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </aside>
+
+                <div className="chat-thread">
+                  {activeConversation ? (
+                    <>
+                      <header className="chat-thread-head">
+                        <button
+                          type="button"
+                          className="chat-back"
+                          aria-label="Kembali ke daftar percakapan"
+                          onClick={() => {
+                            activeConversationRef.current = null;
+                            setActiveConversationId(null);
+                          }}
+                        >
+                          ‹
+                        </button>
+                        <span className="chat-conversation-avatar">
+                          {activeConversation.kind === "GROUP"
+                            ? "◍"
+                            : initials(activeConversation.title)}
+                          {activePartnerPresence?.online && (
+                            <span
+                              className="chat-presence-dot online"
+                              title="Online"
+                              aria-label="Online"
+                            />
+                          )}
+                        </span>
+                        <div className="chat-thread-info">
+                          <strong>{activeConversation.title}</strong>
+                          {activeConversation.kind === "GROUP" ? (
+                            <span>
+                              {activeConversation.members.length} anggota ·{" "}
+                              {activeOnlineCount} online
+                            </span>
+                          ) : (
+                            <span className="chat-thread-presence">
+                              <span
+                                className={`chat-presence-dot ${
+                                  activePartnerPresence?.online ? "online" : ""
+                                }`}
+                                aria-hidden="true"
+                              />
+                              {activePartnerPresence?.online ? "Online" : "Offline"}
+                              {activePartnerPresence &&
+                                activePartnerPresence.status !== "AVAILABLE" && (
+                                  <span
+                                    className={`chat-status-chip tone-${
+                                      CHAT_STATUS_META[activePartnerPresence.status].tone
+                                    }`}
+                                  >
+                                    {CHAT_STATUS_META[activePartnerPresence.status].label}
+                                  </span>
+                                )}
+                              {activePartnerPresence?.note && (
+                                <span className="chat-status-note">
+                                  {activePartnerPresence.note}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="chat-thread-team"
+                          onClick={openChatTeam}
+                          title="Lihat status tim"
+                        >
+                          ♙ {onlineCount} online
+                        </button>
+                      </header>
+
+                      <div className="chat-messages" ref={chatScrollRef}>
+                        {chatHasMore && (
+                          <button
+                            type="button"
+                            className="chat-load-more"
+                            disabled={chatMessagesLoading}
+                            onClick={() => {
+                              const first = chatMessages[0];
+                              if (!first) return;
+                              setChatMessagesLoading(true);
+                              void loadChatMessages(activeConversation.id, {
+                                before: first.createdAt,
+                              });
+                            }}
+                          >
+                            {chatMessagesLoading
+                              ? "Memuat pesan lama..."
+                              : "Muat pesan sebelumnya"}
+                          </button>
+                        )}
+
+                        {chatMessagesLoading && chatMessages.length === 0 && (
+                          <div className="chat-thread-empty">Memuat pesan...</div>
+                        )}
+
+                        {!chatMessagesLoading && chatMessages.length === 0 && (
+                          <div className="chat-thread-empty">
+                            <strong>Mulai percakapan</strong>
+                            <p>Kirim pesan atau berkas pertama di sini.</p>
+                          </div>
+                        )}
+
+                        {chatMessages.map((message) => {
+                          const own = message.sender.id === user.id;
+                          return (
+                            <article
+                              key={message.id}
+                              className={`chat-message ${own ? "own" : ""}`}
+                            >
+                              {!own && (
+                                <span className="chat-message-avatar">
+                                  {initials(message.sender.name)}
+                                </span>
+                              )}
+                              <div className="chat-message-body">
+                                {!own && (
+                                  <span className="chat-message-sender">
+                                    {message.sender.name}
+                                  </span>
+                                )}
+                                <div className="chat-bubble">
+                                  {message.body && <p>{message.body}</p>}
+                                  {message.attachments.length > 0 && (
+                                    <div className="chat-attachments">
+                                      {message.attachments.map((attachment) =>
+                                        isImageMime(attachment.mimeType) ? (
+                                          <a
+                                            key={attachment.id}
+                                            className="chat-image"
+                                            href={attachment.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                              src={attachment.url}
+                                              alt={attachment.name}
+                                              loading="lazy"
+                                            />
+                                            <span>{attachment.name}</span>
+                                          </a>
+                                        ) : (
+                                          <a
+                                            key={attachment.id}
+                                            className="chat-file"
+                                            href={attachment.url}
+                                          >
+                                            <span className="chat-file-icon">
+                                              {attachment.mimeType === "application/pdf"
+                                                ? "PDF"
+                                                : "▢"}
+                                            </span>
+                                            <span className="chat-file-text">
+                                              <strong>{attachment.name}</strong>
+                                              <small>
+                                                {formatFileSize(attachment.size)}
+                                              </small>
+                                            </span>
+                                            <span className="chat-file-download">↓</span>
+                                          </a>
+                                        )
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                <time className="chat-message-time">
+                                  {formatChatStamp(message.createdAt)}
+                                </time>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+
+                      <form
+                        className={`chat-composer ${chatDragging ? "dragging" : ""}`}
+                        onSubmit={sendChatMessage}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          setChatDragging(true);
+                        }}
+                        onDragLeave={() => setChatDragging(false)}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          setChatDragging(false);
+                          pickChatFiles(event.dataTransfer.files);
+                        }}
+                      >
+                        {chatFiles.length > 0 && (
+                          <div className="chat-pending-files">
+                            {chatFiles.map((file, index) => (
+                              <span className="chat-pending-file" key={`${file.name}-${index}`}>
+                                <span className="chat-pending-name">{file.name}</span>
+                                <small>{formatFileSize(file.size)}</small>
+                                <button
+                                  type="button"
+                                  aria-label={`Hapus ${file.name}`}
+                                  onClick={() =>
+                                    setChatFiles((prev) =>
+                                      prev.filter((_, itemIndex) => itemIndex !== index)
+                                    )
+                                  }
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <input
+                          ref={chatFileInputRef}
+                          type="file"
+                          multiple
+                          hidden
+                          onChange={(event) => {
+                            if (event.target.files) pickChatFiles(event.target.files);
+                            event.target.value = "";
+                          }}
+                        />
+
+                        <div className="chat-composer-row">
+                          <button
+                            type="button"
+                            className="chat-attach"
+                            title="Lampirkan berkas apa pun"
+                            aria-label="Lampirkan berkas"
+                            onClick={() => chatFileInputRef.current?.click()}
+                          >
+                            ＋
+                          </button>
+                          <textarea
+                            value={chatDraft}
+                            onChange={(event) => setChatDraft(event.target.value)}
+                            onKeyDown={handleChatComposerKeyDown}
+                            placeholder="Tulis pesan... (Enter kirim, Shift+Enter baris baru)"
+                            rows={1}
+                            maxLength={8000}
+                          />
+                          <button
+                            className="primary-button chat-send"
+                            disabled={
+                              chatSending || (!chatDraft.trim() && chatFiles.length === 0)
+                            }
+                          >
+                            {chatSending ? "Mengirim..." : "Kirim"}
+                          </button>
+                        </div>
+                        <span className="chat-composer-hint">
+                          Berkas apa pun · maks 50 MB per berkas · 10 berkas per pesan
+                        </span>
+                      </form>
+                    </>
+                  ) : (
+                    <div className="chat-idle">
+                      <span className="chat-idle-mark">✉</span>
+                      <strong>Pilih percakapan</strong>
+                      <p>
+                        Pilih dari daftar di samping, atau mulai percakapan baru
+                        untuk mengirim pesan dan berkas secara real-time.
+                      </p>
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={openChatCreate}
+                      >
+                        ＋ Percakapan Baru
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {showChatCreate && (
+            <div
+              className="task-modal-backdrop"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setShowChatCreate(false);
+              }}
+            >
+              <form className="task-modal chat-create-modal" onSubmit={createConversation}>
+                <div className="task-modal-heading">
+                  <div>
+                    <div className="task-modal-eyebrow">PESAN BARU</div>
+                    <h2>Mulai percakapan</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="task-modal-close"
+                    onClick={() => setShowChatCreate(false)}
+                    aria-label="Tutup"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <p className="chat-create-hint">
+                  Pilih satu orang untuk chat pribadi, atau beberapa orang untuk
+                  grup tim.
+                </p>
+
+                <label className="chat-create-name">
+                  Nama grup (opsional)
+                  <input
+                    value={chatCreateName}
+                    onChange={(event) => setChatCreateName(event.target.value)}
+                    maxLength={80}
+                    placeholder="Contoh: Tim Marketing"
+                    disabled={chatCreateMembers.length < 2}
+                  />
+                </label>
+
+                <div className="chat-member-list" role="group" aria-label="Pilih anggota">
+                  {members
+                    .filter((member) => member.id !== user.id)
+                    .map((member) => {
+                      const selected = chatCreateMembers.includes(member.id);
+                      return (
+                        <label
+                          key={member.id}
+                          className={`chat-member ${selected ? "selected" : ""}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() =>
+                              setChatCreateMembers((prev) =>
+                                prev.includes(member.id)
+                                  ? prev.filter((id) => id !== member.id)
+                                  : [...prev, member.id]
+                              )
+                            }
+                          />
+                          <span className="member-avatar">{initials(member.name)}</span>
+                          <span className="chat-member-info">
+                            <strong>{member.name}</strong>
+                            <small>
+                              {ROLE_LABEL[member.role]}
+                              {member.division?.name ? ` · ${member.division.name}` : ""}
+                            </small>
+                          </span>
+                          <span className="chat-member-check" aria-hidden="true">
+                            ✓
+                          </span>
+                        </label>
+                      );
+                    })}
+                  {members.filter((member) => member.id !== user.id).length === 0 && (
+                    <p className="chat-member-empty">Belum ada anggota lain.</p>
+                  )}
+                </div>
+
+                {chatCreateError && <p className="task-link-error">{chatCreateError}</p>}
+
+                <div className="task-modal-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setShowChatCreate(false)}
+                    disabled={chatCreateBusy}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    className="primary-button"
+                    disabled={chatCreateBusy || chatCreateMembers.length === 0}
+                  >
+                    {chatCreateBusy
+                      ? "Membuat..."
+                      : chatCreateMembers.length > 1
+                        ? "Buat Grup"
+                        : "Mulai Chat"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {showChatTeam && (
+            <div
+              className="task-modal-backdrop"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setShowChatTeam(false);
+              }}
+            >
+              <div
+                className="task-modal chat-team-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Tim dan kehadiran"
+              >
+                <div className="task-modal-heading">
+                  <div>
+                    <div className="task-modal-eyebrow">KEHADIRAN TIM</div>
+                    <h2>Siapa yang online</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="task-modal-close"
+                    onClick={() => setShowChatTeam(false)}
+                    aria-label="Tutup"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <form className="chat-status-form" onSubmit={saveChatStatus}>
+                  <div className="chat-status-form-label">
+                    Status saya
+                    <span>
+                      {onlineCount} dari {presenceUsers.length} anggota online
+                    </span>
+                  </div>
+                  <div
+                    className="chat-status-options"
+                    role="group"
+                    aria-label="Pilih status kehadiran"
+                  >
+                    {(Object.keys(CHAT_STATUS_META) as ChatStatus[]).map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        className={`chat-status-option tone-${CHAT_STATUS_META[status].tone} ${
+                          chatStatus === status ? "active" : ""
+                        }`}
+                        onClick={() => setChatStatus(status)}
+                      >
+                        <span className="chat-status-icon">
+                          {CHAT_STATUS_META[status].icon}
+                        </span>
+                        {CHAT_STATUS_META[status].label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="chat-status-note-row">
+                    <input
+                      value={chatStatusNote}
+                      onChange={(event) => setChatStatusNote(event.target.value)}
+                      maxLength={80}
+                      placeholder="Catatan opsional, mis. Rapat sampai 14.00"
+                      aria-label="Catatan status"
+                    />
+                    <button className="primary-button" disabled={chatStatusBusy}>
+                      {chatStatusBusy ? "Menyimpan..." : "Simpan"}
+                    </button>
+                  </div>
+                  <p className="chat-status-hint">
+                    Status ini terlihat oleh semua rekan di chat. Status otomatis
+                    menjadi Offline saat aplikasi ditutup.
+                  </p>
+                </form>
+
+                <div className="search-box chat-team-search">
+                  <span>⌕</span>
+                  <input
+                    value={chatTeamSearch}
+                    onChange={(event) => setChatTeamSearch(event.target.value)}
+                    placeholder="Cari nama atau divisi..."
+                    aria-label="Cari anggota tim"
+                  />
+                </div>
+
+                <div className="chat-team-list">
+                  {chatTeamError && (
+                    <p className="task-link-error chat-team-error">{chatTeamError}</p>
+                  )}
+                  {filteredTeam.length === 0 && (
+                    <p className="chat-member-empty">Tidak ada anggota yang cocok.</p>
+                  )}
+                  {filteredTeam.map((person) => {
+                    const meta = CHAT_STATUS_META[person.status];
+                    return (
+                      <button
+                        key={person.id}
+                        type="button"
+                        className="chat-team-row"
+                        onClick={() => openDirectChat(person.id)}
+                        disabled={chatTeamBusyId === person.id}
+                      >
+                        <span className="chat-team-avatar">
+                          {initials(person.name)}
+                          <span
+                            className={`chat-presence-dot ${
+                              person.online ? "online" : ""
+                            }`}
+                            aria-hidden="true"
+                          />
+                        </span>
+                        <span className="chat-team-info">
+                          <strong>{person.name}</strong>
+                          <small>
+                            {ROLE_LABEL[person.role]}
+                            {person.division ? ` · ${person.division}` : ""}
+                          </small>
+                          {person.note && (
+                            <small className="chat-team-note">{person.note}</small>
+                          )}
+                        </span>
+                        <span className="chat-team-right">
+                          {person.status !== "AVAILABLE" && (
+                            <span className={`chat-status-chip tone-${meta.tone}`}>
+                              {meta.short}
+                            </span>
+                          )}
+                          <span
+                            className={`chat-team-online ${
+                              person.online ? "online" : ""
+                            }`}
+                          >
+                            {chatTeamBusyId === person.id
+                              ? "Membuka..."
+                              : person.online
+                                ? "Online"
+                                : "Offline"}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="chat-team-hint">
+                  Klik anggota untuk membuka chat pribadi.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* ============ DASHBOARD / TUGAS SAYA / KANBAN ============ */}
           {showTasksPanel && (
             <section className="panel tasks-panel">
@@ -2079,6 +3548,11 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                                   ↗ {task.links.length} tautan
                                 </span>
                               )}
+                              {!!task.tags?.length && (
+                                <span className="kanban-link-count kanban-tag-count">
+                                  ✎ {task.tags.length} tag
+                                </span>
+                              )}
                             </button>
                             <select
                               className={`status-select status-${task.status.toLowerCase()}`}
@@ -2131,7 +3605,16 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                             <td>
                               <div className="task-name">
                                 <span className={`task-indicator ${task.status === "DONE" ? "indicator-done" : ""}`} />
-                                <span className="task-title">{task.title}</span>
+                                <button
+                                  type="button"
+                                  className="task-title"
+                                  onClick={() => openTaskDetails(task)}
+                                >
+                                  {task.title}
+                                </button>
+                                {task.tags?.some((tag) => tag.user.id === user.id) && (
+                                  <span className="task-tag-badge">Ditandai</span>
+                                )}
                               </div>
                             </td>
                             <td>
@@ -2246,6 +3729,91 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
               <p>{selectedTask.description || "Belum ada deskripsi untuk tugas ini."}</p>
             </div>
 
+            <div className="task-tags-section">
+              <div className="task-tags-heading">
+                <div>
+                  <h3>Tag rekan</h3>
+                  <p>
+                    Rekan yang di-tag otomatis bisa melihat tugas ini beserta perubahan
+                    status dan riwayatnya.
+                  </p>
+                </div>
+                <span>{selectedTask.tags?.length ?? 0} rekan</span>
+              </div>
+
+              {selectedTask.tags?.length ? (
+                <ul className="task-tag-list">
+                  {selectedTask.tags.map((tag) => (
+                    <li key={tag.id}>
+                      <span className="task-tag-avatar">{initials(tag.user.name)}</span>
+                      <span className="task-tag-info">
+                        <strong>{tag.user.name}</strong>
+                        <small>ditandai oleh {tag.taggedBy.name}</small>
+                      </span>
+                      {canEditSelectedTask && (
+                        <button
+                          type="button"
+                          className="task-tag-remove"
+                          onClick={() => void removeTaskTag(tag.user.id)}
+                          disabled={tagBusy}
+                          aria-label={`Lepas tanda ${tag.user.name}`}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="task-tag-empty">Belum ada rekan yang di-tag.</p>
+              )}
+
+              {canEditSelectedTask ? (
+                <form className="task-tag-form" onSubmit={addTaskTag}>
+                  <select
+                    value={tagUserId}
+                    onChange={(event) => {
+                      setTagUserId(event.target.value);
+                      setTagError("");
+                      setTagNotice("");
+                    }}
+                    aria-label="Pilih rekan untuk di-tag"
+                  >
+                    <option value="">
+                      {members.length === 0 ? "Memuat anggota..." : "Pilih rekan..."}
+                    </option>
+                    {availableTagMembers.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name} · {ROLE_LABEL[member.role]}
+                        {member.division?.name ? ` · ${member.division.name}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="secondary-button"
+                    disabled={tagBusy || !tagUserId || members.length === 0}
+                  >
+                    {tagBusy ? "Memproses..." : "+ Tag rekan"}
+                  </button>
+                </form>
+              ) : (
+                <p className="task-tag-hint">
+                  Hanya pembuat, penanggung jawab, atau manajer yang dapat mengubah tag.
+                </p>
+              )}
+
+              {tagError && (
+                <p className="task-link-error" role="alert">
+                  {tagError}
+                </p>
+              )}
+              {tagNotice && (
+                <p className="task-link-notice" role="status">
+                  {tagNotice}
+                </p>
+              )}
+            </div>
+
             <div className="task-links-section">
               <div className="task-links-heading">
                 <div>
@@ -2282,36 +3850,38 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                 <p className="task-links-empty">Belum ada tautan pada tugas ini.</p>
               )}
 
-              <form className="task-link-form" onSubmit={addTaskLink}>
-                <label>
-                  Nama tautan
-                  <input
-                    value={newTaskLink.label}
-                    maxLength={80}
-                    onChange={(event) =>
-                      setNewTaskLink({ ...newTaskLink, label: event.target.value })
-                    }
-                    placeholder="Contoh: GitHub repository"
-                    required
-                  />
-                </label>
-                <label>
-                  URL
-                  <input
-                    type="url"
-                    value={newTaskLink.url}
-                    maxLength={2048}
-                    onChange={(event) =>
-                      setNewTaskLink({ ...newTaskLink, url: event.target.value })
-                    }
-                    placeholder="https://..."
-                    required
-                  />
-                </label>
-                <button className="secondary-button" type="submit">
-                  + Tambah tautan
-                </button>
-              </form>
+              {canEditSelectedTask && (
+                <form className="task-link-form" onSubmit={addTaskLink}>
+                  <label>
+                    Nama tautan
+                    <input
+                      value={newTaskLink.label}
+                      maxLength={80}
+                      onChange={(event) =>
+                        setNewTaskLink({ ...newTaskLink, label: event.target.value })
+                      }
+                      placeholder="Contoh: GitHub repository"
+                      required
+                    />
+                  </label>
+                  <label>
+                    URL
+                    <input
+                      type="url"
+                      value={newTaskLink.url}
+                      maxLength={2048}
+                      onChange={(event) =>
+                        setNewTaskLink({ ...newTaskLink, url: event.target.value })
+                      }
+                      placeholder="https://..."
+                      required
+                    />
+                  </label>
+                  <button className="secondary-button" type="submit">
+                    + Tambah tautan
+                  </button>
+                </form>
+              )}
 
               {linkError && <p className="task-link-error" role="alert">{linkError}</p>}
               {linkNotice && <p className="task-link-notice" role="status">{linkNotice}</p>}
@@ -2324,14 +3894,16 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                 >
                   Tutup
                 </button>
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => void saveTaskLinks()}
-                  disabled={savingLinks}
-                >
-                  {savingLinks ? "Menyimpan..." : "Simpan tautan"}
-                </button>
+                {canEditSelectedTask && (
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => void saveTaskLinks()}
+                    disabled={savingLinks}
+                  >
+                    {savingLinks ? "Menyimpan..." : "Simpan tautan"}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2474,6 +4046,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         .nav-icon { display: grid; place-items: center; width: 19px; font-size: 17px; transition: transform .25s cubic-bezier(.2,.8,.2,1); }
         .nav-item:hover .nav-icon { transform: translateY(-1px) scale(1.1); }
         .nav-count { margin-left: auto; padding: 3px 7px; border-radius: 6px; background: var(--rei-accent-soft-bg); color: var(--rei-accent-soft-text); font-size: 10px; }
+        .nav-count-alert { background: var(--rei-danger-soft); color: var(--rei-danger-text); }
         .sidebar-bottom { position: relative; margin-top: auto; }
         .help-card { padding: 15px; margin-bottom: 17px; border: 1px solid var(--rei-border); border-radius: 11px; background: linear-gradient(135deg, color-mix(in srgb, var(--rei-accent) 7%, var(--rei-surface)), color-mix(in srgb, var(--rei-gold) 9%, var(--rei-surface))); backdrop-filter: var(--rei-blur); -webkit-backdrop-filter: var(--rei-blur); transition: transform .2s ease, border-color .2s ease; }
         .help-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--rei-gold) 45%, var(--rei-border)); }
@@ -2623,7 +4196,9 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         tbody tr { transition: background-color .18s ease; }
         tbody tr:hover { background: var(--rei-surface-2); }
         .task-name { display: flex; align-items: center; gap: 9px; color: var(--rei-text); font-weight: 600; }
-        .task-title { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+        .task-title { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; text-align: left; transition: color .18s ease; }
+        .task-title:hover { color: var(--rei-accent); }
+        .task-tag-badge { flex-shrink: 0; padding: 2px 6px; border-radius: 999px; background: var(--rei-warning-soft); color: var(--rei-warning-text); font-size: 8px; font-weight: 800; letter-spacing: .3px; }
         .task-indicator { width: 9px; height: 9px; flex-shrink: 0; border: 2px solid var(--rei-border-strong); border-radius: 50%; }
         .indicator-done { border-color: var(--rei-success-text); background: var(--rei-success-text); }
         .project-tag { display: inline-flex; align-items: center; gap: 6px; }
@@ -2671,6 +4246,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         .kanban-card-details { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; }
         .kanban-card-details:focus-visible { outline: 2px solid var(--rei-accent); outline-offset: 4px; border-radius: 4px; }
         .kanban-card-details .kanban-link-count { color: var(--rei-accent); font-weight: 700; }
+        .kanban-card-details .kanban-tag-count { color: var(--rei-warning-text); }
         .kanban-column.drag-over { outline: 2px dashed color-mix(in srgb, var(--rei-accent) 60%, transparent); outline-offset: -2px; background: color-mix(in srgb, var(--rei-accent) 7%, var(--rei-surface-3)); }
         .project-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 21px; }
         .project-description { margin: 14px 0 0; color: var(--rei-muted); font-size: 10px; line-height: 1.6; }
@@ -2697,6 +4273,25 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         .task-modal-description { padding-bottom: 17px; border-bottom: 1px solid var(--rei-border); }
         .task-modal h3 { margin: 0; font-size: 11px; font-weight: 800; color: var(--rei-heading); }
         .task-modal-description p { margin: 7px 0 0; color: var(--rei-muted); font-size: 11px; line-height: 1.7; white-space: pre-wrap; }
+        .task-tags-section { padding-top: 17px; margin-top: 17px; border-top: 1px solid var(--rei-border); }
+        .task-tags-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+        .task-tags-heading p { margin: 5px 0 0; color: var(--rei-muted); font-size: 10px; line-height: 1.5; }
+        .task-tags-heading > span { flex-shrink: 0; color: var(--rei-muted); font-size: 10px; }
+        .task-tag-list { display: flex; flex-wrap: wrap; gap: 7px; padding: 0; margin: 13px 0; list-style: none; }
+        .task-tag-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--rei-border); border-radius: 999px; background: var(--rei-surface-2); transition: border-color .2s ease, transform .2s ease; }
+        .task-tag-list li:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--rei-accent) 32%, var(--rei-border)); }
+        .task-tag-avatar { display: grid; place-items: center; width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; background: var(--rei-accent-soft-bg); color: var(--rei-accent-soft-text); font-size: 8px; font-weight: 800; }
+        .task-tag-info { display: flex; flex-direction: column; gap: 1px; }
+        .task-tag-info strong { color: var(--rei-text); font-size: 9px; }
+        .task-tag-info small { color: var(--rei-soft); font-size: 8px; }
+        .task-tag-remove { display: grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--rei-muted); font-size: 14px; line-height: 1; transition: background-color .18s ease, color .18s ease; }
+        .task-tag-remove:hover:not(:disabled) { background: var(--rei-danger-soft); color: var(--rei-danger-text); }
+        .task-tag-empty { margin: 13px 0; color: var(--rei-muted); font-size: 10px; }
+        .task-tag-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px; border: 1px solid var(--rei-border); border-radius: 10px; background: var(--rei-surface-2); }
+        .task-tag-form select { width: 100%; min-width: 0; height: 34px; padding: 0 9px; border: 1px solid var(--rei-border-strong); border-radius: 7px; outline: none; background: var(--rei-input-bg); color: var(--rei-text); font-size: 10px; transition: border-color .2s ease, box-shadow .2s ease; }
+        .task-tag-form select:focus { border-color: var(--rei-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rei-accent) 14%, transparent); }
+        .task-tag-form .secondary-button { min-height: 34px; padding: 0 10px; font-size: 9px; }
+        .task-tag-hint { margin: 10px 0 0; color: var(--rei-soft); font-size: 9px; }
         .task-links-section { padding-top: 17px; }
         .task-links-heading { align-items: center; }
         .task-links-heading p { margin: 5px 0 0; color: var(--rei-muted); font-size: 10px; line-height: 1.5; }
@@ -2739,6 +4334,185 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         .task-issue-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .task-issue-actions > span { color: var(--rei-soft); font-size: 9px; }
 
+        /* Chat */
+        .chat-panel { padding: 16px; }
+        .chat-error { margin-bottom: 12px; }
+        .chat-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; height: calc(100vh - 300px); min-height: 480px; }
+        .chat-sidebar { display: flex; flex-direction: column; min-height: 0; padding: 14px; border: 1px solid var(--rei-border); border-radius: 12px; background: var(--rei-surface-2); }
+        .chat-sidebar-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+        .chat-sidebar-head h2 { margin: 0; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 800; color: var(--rei-heading); }
+        .chat-sidebar-head p { display: flex; flex-direction: column; gap: 4px; margin: 5px 0 0; color: var(--rei-muted); font-size: 9px; }
+        .chat-new { min-height: 30px; padding: 0 10px; font-size: 10px; }
+        .chat-live { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; font-weight: 700; }
+        .chat-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--rei-soft); }
+        .chat-live-online { color: var(--rei-success-text); }
+        .chat-live-online::before { background: var(--rei-success-text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rei-success-text) 20%, transparent); animation: pulse-dot 2.4s ease-in-out infinite; }
+        .chat-live-connecting { color: var(--rei-warning-text); }
+        .chat-live-connecting::before { background: var(--rei-warning-text); }
+        .chat-live-offline { color: var(--rei-danger-text); }
+        .chat-live-offline::before { background: var(--rei-danger-text); }
+        .chat-search { height: 33px; margin-bottom: 10px; }
+        .chat-search input { width: 100%; }
+        .chat-conversation-list { display: flex; flex: 1; flex-direction: column; gap: 5px; min-height: 0; overflow-y: auto; padding-right: 2px; }
+        .chat-conversation { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--rei-text); text-align: left; transition: background-color .18s ease, border-color .18s ease, transform .18s ease; }
+        .chat-conversation:hover { background: var(--rei-surface-hover); transform: translateX(1px); }
+        .chat-conversation.active { border-color: color-mix(in srgb, var(--rei-accent) 35%, transparent); background: var(--rei-accent-soft-bg); }
+        .chat-conversation-avatar { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; background: var(--rei-accent-soft-bg); color: var(--rei-accent-soft-text); font-size: 10px; font-weight: 800; }
+        .chat-conversation.active .chat-conversation-avatar { background: var(--rei-accent); color: var(--rei-accent-contrast); }
+        .chat-conversation-body { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+        .chat-conversation-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .chat-conversation-top strong { overflow: hidden; color: var(--rei-text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+        .chat-conversation-top time { flex-shrink: 0; color: var(--rei-soft); font-size: 8px; }
+        .chat-conversation-bottom { display: flex; align-items: center; gap: 8px; }
+        .chat-conversation-bottom small { flex: 1; overflow: hidden; color: var(--rei-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+        .chat-conversation.unread .chat-conversation-bottom small { color: var(--rei-text); font-weight: 700; }
+        .chat-unread { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--rei-accent); color: var(--rei-accent-contrast); font-size: 8px; font-weight: 800; }
+        .chat-list-empty { display: flex; flex-direction: column; gap: 8px; padding: 26px 8px; color: var(--rei-soft); text-align: center; font-size: 10px; line-height: 1.6; }
+        .chat-thread { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--rei-border); border-radius: 12px; background: var(--rei-surface); }
+        .chat-thread-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--rei-border); background: var(--rei-surface-2); }
+        .chat-thread-info { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+        .chat-thread-info strong { overflow: hidden; color: var(--rei-heading); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+        .chat-thread-info span { color: var(--rei-muted); font-size: 9px; }
+        .chat-back { display: none; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border: 1px solid var(--rei-border); border-radius: 8px; background: transparent; color: var(--rei-muted); font-size: 18px; line-height: 1; }
+        .chat-back:hover { color: var(--rei-accent); border-color: color-mix(in srgb, var(--rei-accent) 40%, var(--rei-border)); }
+        .chat-messages { display: flex; flex: 1; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding: 16px; background: var(--rei-surface-3); }
+        .chat-thread-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: var(--rei-soft); text-align: center; font-size: 10px; }
+        .chat-thread-empty strong { color: var(--rei-text); font-size: 12px; }
+        .chat-thread-empty p { margin: 0; }
+        .chat-load-more { align-self: center; padding: 6px 12px; border: 1px solid var(--rei-border); border-radius: 20px; background: var(--rei-surface); color: var(--rei-muted); font-size: 9px; font-weight: 700; }
+        .chat-load-more:hover { color: var(--rei-accent); border-color: color-mix(in srgb, var(--rei-accent) 35%, var(--rei-border)); }
+        .chat-message { display: flex; align-items: flex-end; gap: 8px; max-width: 82%; animation: chat-message-in .22s ease both; }
+        .chat-message.own { align-self: flex-end; flex-direction: row-reverse; }
+        .chat-message-avatar { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: var(--rei-accent-soft-bg); color: var(--rei-accent-soft-text); font-size: 8px; font-weight: 800; }
+        .chat-message-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .chat-message.own .chat-message-body { align-items: flex-end; }
+        .chat-message-sender { color: var(--rei-muted); font-size: 8px; font-weight: 700; }
+        .chat-bubble { padding: 9px 12px; border: 1px solid var(--rei-border); border-radius: 12px 12px 12px 4px; background: var(--rei-surface); box-shadow: var(--rei-shadow-soft); }
+        .chat-message.own .chat-bubble { border-color: transparent; border-radius: 12px 12px 4px 12px; background: var(--rei-accent); color: var(--rei-accent-contrast); }
+        .chat-bubble p { margin: 0; font-size: 11px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .chat-attachments { display: grid; gap: 7px; }
+        .chat-bubble p + .chat-attachments { margin-top: 8px; }
+        .chat-image { display: flex; flex-direction: column; gap: 4px; overflow: hidden; border-radius: 8px; background: color-mix(in srgb, var(--rei-surface) 70%, transparent); text-decoration: none; }
+        .chat-image img { display: block; max-width: 260px; max-height: 220px; border-radius: 8px; object-fit: cover; transition: transform .25s ease; }
+        .chat-image:hover img { transform: scale(1.02); }
+        .chat-image span { padding: 0 7px 6px; color: var(--rei-muted); font-size: 8px; overflow-wrap: anywhere; }
+        .chat-message.own .chat-image span { color: color-mix(in srgb, var(--rei-accent-contrast) 75%, transparent); }
+        .chat-file { display: flex; align-items: center; gap: 8px; min-width: 180px; padding: 8px; border: 1px solid var(--rei-border); border-radius: 8px; background: var(--rei-surface-2); text-decoration: none; transition: border-color .2s ease, transform .2s ease; }
+        .chat-message.own .chat-file { border-color: color-mix(in srgb, var(--rei-accent-contrast) 30%, transparent); background: color-mix(in srgb, var(--rei-accent-contrast) 12%, transparent); }
+        .chat-file:hover { transform: translateY(-1px); border-color: var(--rei-accent); }
+        .chat-file-icon { display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 7px; background: var(--rei-accent-soft-bg); color: var(--rei-accent-soft-text); font-size: 8px; font-weight: 800; }
+        .chat-message.own .chat-file-icon { background: color-mix(in srgb, var(--rei-accent-contrast) 22%, transparent); color: var(--rei-accent-contrast); }
+        .chat-file-text { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+        .chat-file-text strong { overflow: hidden; color: var(--rei-text); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+        .chat-message.own .chat-file-text strong { color: var(--rei-accent-contrast); }
+        .chat-file-text small { color: var(--rei-muted); font-size: 8px; }
+        .chat-message.own .chat-file-text small { color: color-mix(in srgb, var(--rei-accent-contrast) 75%, transparent); }
+        .chat-file-download { color: var(--rei-accent); font-size: 12px; font-weight: 800; }
+        .chat-message.own .chat-file-download { color: var(--rei-accent-contrast); }
+        .chat-message-time { color: var(--rei-soft); font-size: 8px; }
+        .chat-composer { display: flex; flex-direction: column; gap: 7px; padding: 10px 14px 9px; border-top: 1px solid var(--rei-border); background: var(--rei-surface); transition: background-color .2s ease, box-shadow .2s ease; }
+        .chat-composer.dragging { background: var(--rei-accent-soft-bg); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--rei-accent) 45%, transparent); }
+        .chat-composer-row { display: flex; align-items: flex-end; gap: 8px; }
+        .chat-attach { display: grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; border: 1px solid var(--rei-border-strong); border-radius: 8px; background: var(--rei-surface-2); color: var(--rei-accent); font-size: 18px; line-height: 1; transition: transform .18s ease, border-color .18s ease; }
+        .chat-attach:hover { transform: translateY(-1px); border-color: var(--rei-accent); }
+        .chat-composer textarea { flex: 1; min-height: 34px; max-height: 120px; padding: 9px 10px; border: 1px solid var(--rei-border-strong); border-radius: 8px; outline: none; background: var(--rei-input-bg); color: var(--rei-text); font-size: 10px; line-height: 1.5; resize: none; }
+        .chat-composer textarea:focus { border-color: var(--rei-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rei-accent) 14%, transparent); }
+        .chat-send { min-height: 34px; }
+        .chat-composer-hint { color: var(--rei-soft); font-size: 8px; }
+        .chat-pending-files { display: flex; flex-wrap: wrap; gap: 6px; }
+        .chat-pending-file { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 8px; border: 1px solid var(--rei-border); border-radius: 8px; background: var(--rei-surface-2); }
+        .chat-pending-name { overflow: hidden; max-width: 150px; color: var(--rei-text); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+        .chat-pending-file small { color: var(--rei-soft); font-size: 8px; }
+        .chat-pending-file button { border: 0; background: transparent; color: var(--rei-danger-text); font-size: 14px; line-height: 1; }
+        .chat-idle { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 100%; padding: 32px; color: var(--rei-muted); text-align: center; }
+        .chat-idle-mark { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--rei-accent-soft-bg); color: var(--rei-accent-soft-text); font-size: 22px; animation: chat-float 5s ease-in-out infinite; }
+        .chat-idle strong { color: var(--rei-heading); font-size: 14px; }
+        .chat-idle p { max-width: 320px; margin: 0 0 6px; font-size: 10px; line-height: 1.7; }
+        .chat-create-modal { width: min(520px, 100%); }
+        .chat-create-hint { margin: 10px 0 14px; color: var(--rei-muted); font-size: 10px; line-height: 1.6; }
+        .chat-create-name { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; color: var(--rei-muted); font-size: 10px; font-weight: 700; }
+        .chat-create-name input { width: 100%; padding: 9px 10px; border: 1px solid var(--rei-border-strong); border-radius: 8px; outline: none; background: var(--rei-input-bg); color: var(--rei-text); font-size: 10px; }
+        .chat-create-name input:focus { border-color: var(--rei-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rei-accent) 14%, transparent); }
+        .chat-member-list { display: grid; gap: 6px; max-height: 300px; overflow-y: auto; padding: 2px; }
+        .chat-member { position: relative; display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--rei-border); border-radius: 9px; background: var(--rei-surface-2); cursor: pointer; transition: border-color .18s ease, background-color .18s ease; }
+        .chat-member:hover { border-color: color-mix(in srgb, var(--rei-accent) 35%, var(--rei-border)); }
+        .chat-member.selected { border-color: color-mix(in srgb, var(--rei-accent) 55%, transparent); background: var(--rei-accent-soft-bg); }
+        .chat-member input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+        .chat-member-info { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+        .chat-member-info strong { color: var(--rei-text); font-size: 10px; }
+        .chat-member-info small { color: var(--rei-muted); font-size: 8px; }
+        .chat-member-check { display: grid; place-items: center; width: 17px; height: 17px; border: 1px solid var(--rei-border-strong); border-radius: 5px; color: transparent; font-size: 9px; font-weight: 800; }
+        .chat-member.selected .chat-member-check { border-color: var(--rei-accent); background: var(--rei-accent); color: var(--rei-accent-contrast); }
+        .chat-member-empty { margin: 0; padding: 18px; color: var(--rei-soft); text-align: center; font-size: 10px; }
+
+        /* Kehadiran dan status */
+        .chat-presence-bar { display: flex; gap: 6px; margin-bottom: 10px; }
+        .chat-self-status { display: flex; flex: 1; align-items: center; gap: 7px; min-width: 0; padding: 7px 9px; border: 1px solid var(--rei-border); border-radius: 9px; background: var(--rei-surface); color: var(--rei-text); text-align: left; transition: border-color .18s ease, transform .18s ease; }
+        .chat-self-status:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--rei-accent) 35%, var(--rei-border)); }
+        .chat-self-status-text { display: flex; flex: 1; flex-direction: column; gap: 1px; min-width: 0; }
+        .chat-self-status-text small { color: var(--rei-soft); font-size: 8px; }
+        .chat-self-status-text strong { overflow: hidden; color: var(--rei-text); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+        .chat-self-status-edit { flex-shrink: 0; color: var(--rei-accent); font-size: 8px; font-weight: 700; }
+        .chat-status-icon { display: grid; place-items: center; width: 18px; height: 18px; flex-shrink: 0; border-radius: 50%; background: var(--chat-tone-soft, var(--rei-surface-2)); color: var(--chat-tone, var(--rei-accent-soft-text)); font-size: 9px; line-height: 1; }
+        .chat-team-button { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 0 10px; border: 1px solid var(--rei-border); border-radius: 9px; background: var(--rei-surface); color: var(--rei-muted); font-size: 9px; font-weight: 700; transition: border-color .18s ease, color .18s ease; }
+        .chat-team-button:hover { border-color: color-mix(in srgb, var(--rei-success-text) 45%, var(--rei-border)); color: var(--rei-success-text); }
+        .chat-team-button > span { display: inline-flex; align-items: baseline; gap: 3px; }
+        .chat-team-button small { color: var(--rei-soft); font-size: 8px; font-weight: 500; }
+
+        .tone-available { --chat-tone: var(--rei-success-text); --chat-tone-soft: var(--rei-success-soft); }
+        .tone-meeting { --chat-tone: var(--rei-warning-text); --chat-tone-soft: var(--rei-warning-soft); }
+        .tone-leave { --chat-tone: var(--rei-info-text); --chat-tone-soft: var(--rei-info-soft); }
+        .tone-slow { --chat-tone: var(--rei-orange-text); --chat-tone-soft: var(--rei-orange-soft); }
+
+        .chat-presence-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--rei-soft); box-shadow: 0 0 0 2px var(--rei-surface); }
+        .chat-presence-dot.online { background: #22a06b; box-shadow: 0 0 0 2px var(--rei-surface), 0 0 0 3px #22a06b26; animation: pulse-dot 2.4s ease-in-out infinite; }
+        .chat-conversation-avatar { position: relative; }
+        .chat-team-avatar { position: relative; }
+        .chat-conversation-avatar > .chat-presence-dot { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border: 2px solid var(--rei-surface); box-shadow: none; }
+        .chat-conversation.active .chat-conversation-avatar > .chat-presence-dot { border-color: var(--rei-accent-soft-bg); }
+
+        .chat-status-chip { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; padding: 2px 6px; border-radius: 5px; background: var(--chat-tone-soft); color: var(--chat-tone); font-size: 8px; font-weight: 800; white-space: nowrap; }
+        .chat-thread-presence { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .chat-thread-presence .chat-presence-dot { width: 7px; height: 7px; }
+        .chat-status-note { overflow: hidden; max-width: 220px; color: var(--rei-soft); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+        .chat-thread-team { flex-shrink: 0; padding: 5px 8px; border: 1px solid var(--rei-border); border-radius: 7px; background: var(--rei-surface); color: var(--rei-muted); font-size: 8px; font-weight: 700; transition: border-color .18s ease, color .18s ease; }
+        .chat-thread-team:hover { color: var(--rei-success-text); border-color: color-mix(in srgb, var(--rei-success-text) 40%, var(--rei-border)); }
+
+        .chat-team-modal { width: min(560px, 100%); }
+        .chat-status-form { margin-top: 14px; padding: 12px; border: 1px solid var(--rei-border); border-radius: 10px; background: var(--rei-surface-2); }
+        .chat-status-form-label { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; color: var(--rei-muted); font-size: 9px; font-weight: 700; }
+        .chat-status-form-label span { color: var(--rei-soft); font-size: 8px; font-weight: 500; }
+        .chat-status-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+        .chat-status-option { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid var(--rei-border); border-radius: 8px; background: var(--rei-surface); color: var(--rei-text); font-size: 9px; font-weight: 600; text-align: left; transition: border-color .18s ease, background-color .18s ease; }
+        .chat-status-option:hover { border-color: color-mix(in srgb, var(--chat-tone) 45%, var(--rei-border)); }
+        .chat-status-option.active { border-color: var(--chat-tone); background: var(--chat-tone-soft); color: var(--chat-tone); font-weight: 800; }
+        .chat-status-option.active .chat-status-icon { background: var(--rei-surface); }
+        .chat-status-note-row { display: flex; gap: 7px; margin-top: 8px; }
+        .chat-status-note-row input { flex: 1; min-width: 0; padding: 8px 9px; border: 1px solid var(--rei-border-strong); border-radius: 7px; outline: none; background: var(--rei-input-bg); color: var(--rei-text); font-size: 9px; }
+        .chat-status-note-row input:focus { border-color: var(--rei-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rei-accent) 14%, transparent); }
+        .chat-status-note-row .primary-button { min-height: 31px; padding: 0 12px; }
+        .chat-status-hint { margin: 7px 0 0; color: var(--rei-soft); font-size: 8px; line-height: 1.5; }
+        .chat-team-search { height: 33px; margin: 14px 0 8px; }
+        .chat-team-search input { width: 100%; }
+        .chat-team-list { display: grid; gap: 6px; max-height: 280px; overflow-y: auto; padding: 2px; }
+        .chat-team-row { display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 10px; border: 1px solid var(--rei-border); border-radius: 9px; background: var(--rei-surface-2); color: var(--rei-text); text-align: left; transition: border-color .18s ease, transform .18s ease; }
+        .chat-team-row:hover:not(:disabled) { transform: translateX(1px); border-color: color-mix(in srgb, var(--rei-accent) 35%, var(--rei-border)); }
+        .chat-team-row:disabled { opacity: .6; }
+        .chat-team-avatar { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: var(--rei-accent-soft-bg); color: var(--rei-accent-soft-text); font-size: 9px; font-weight: 800; }
+        .chat-team-avatar > .chat-presence-dot { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border: 2px solid var(--rei-surface-2); box-shadow: none; }
+        .chat-team-info { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+        .chat-team-info strong { overflow: hidden; color: var(--rei-text); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+        .chat-team-info small { overflow: hidden; color: var(--rei-muted); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+        .chat-team-info .chat-team-note { color: var(--rei-soft); font-style: italic; }
+        .chat-team-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+        .chat-team-online { color: var(--rei-soft); font-size: 8px; font-weight: 700; }
+        .chat-team-online.online { color: var(--rei-success-text); }
+        .chat-team-hint { margin: 8px 0 0; color: var(--rei-soft); font-size: 8px; text-align: center; }
+        .chat-team-error { margin: 0 0 6px; }
+
+        @keyframes chat-message-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes chat-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
         @keyframes page-enter { from { opacity: 0; } to { opacity: 1; } }
         @keyframes card-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -2763,6 +4537,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
           .progress-ring-inner { width: 83px; height: 83px; }
           .progress-ring-inner strong { font-size: 22px; }
           .form-grid { grid-template-columns: 1fr 1fr; }
+          .chat-layout { grid-template-columns: 260px minmax(0, 1fr); }
         }
         @media (max-width: 800px) {
           .sidebar { position: static; width: 100%; height: auto; padding: 14px 16px; border-right: 0; border-bottom: 1px solid var(--rei-border); }
@@ -2789,9 +4564,22 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
           .description-field { grid-column: auto; }
           .page-footer { flex-direction: column; }
           .task-link-form { grid-template-columns: 1fr; }
+          .task-tag-form { grid-template-columns: 1fr; }
+          .task-tags-heading { flex-direction: column; gap: 6px; }
           .task-issue-actions { align-items: flex-start; flex-direction: column; }
           .task-modal { padding: 19px; }
           .theme-toggle span:nth-child(2) { display: none; }
+          .chat-panel { padding: 12px; }
+          .chat-layout { grid-template-columns: 1fr; height: calc(100vh - 250px); min-height: 440px; }
+          .chat-thread { display: none; }
+          .chat-layout.has-active .chat-sidebar { display: none; }
+          .chat-layout.has-active .chat-thread { display: flex; }
+          .chat-back { display: grid; }
+          .chat-message { max-width: 92%; }
+          .chat-image img { max-width: 200px; }
+          .chat-thread-team { display: none; }
+          .chat-status-options { grid-template-columns: 1fr; }
+          .chat-status-note { max-width: 140px; }
         }
         @media (max-width: 430px) {
           .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

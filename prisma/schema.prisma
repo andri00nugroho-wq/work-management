@@ -30,6 +30,18 @@ enum TaskPriority {
   URGENT
 }
 
+enum ChatKind {
+  DIRECT
+  GROUP
+}
+
+enum ChatStatus {
+  AVAILABLE
+  MEETING
+  LEAVE
+  SLOW_RESPONSE
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -50,8 +62,17 @@ model User {
 
   taskAssignments TaskAssignment[] @relation("UserTaskAssignments")
 
-  activities   Activity[]
-  issueReports TaskIssueReport[]
+  activities      Activity[]
+  issueReports    TaskIssueReport[]
+  taskTags        TaskTag[]         @relation("TaskTagTarget")
+  taggedTaskLinks TaskTag[]         @relation("TaskTagCreator")
+
+  chatStatus     ChatStatus @default(AVAILABLE)
+  chatStatusNote String?
+
+  chatMemberships      ConversationMember[] @relation("ChatMembership")
+  chatMessages         Message[]            @relation("ChatSender")
+  createdConversations Conversation[]       @relation("ChatCreator")
 }
 
 model Division {
@@ -106,6 +127,7 @@ model Task {
   activities   Activity[]
   links        TaskLink[]
   issueReports TaskIssueReport[]
+  tags         TaskTag[]
 
   @@index([divisionId])
   @@index([creatorId])
@@ -123,6 +145,22 @@ model TaskLink {
   task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
+}
+
+model TaskTag {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  taskId     String
+  task       Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User   @relation("TaskTagTarget", fields: [userId], references: [id], onDelete: Cascade)
+  taggedById String
+  taggedBy   User   @relation("TaskTagCreator", fields: [taggedById], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([taskId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model TaskIssueReport {
@@ -176,4 +214,66 @@ model Activity {
 
   @@index([userId, createdAt])
   @@index([taskId, createdAt])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  kind      ChatKind @default(DIRECT)
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String
+  createdBy   User   @relation("ChatCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  members  ConversationMember[]
+  messages Message[]
+
+  @@index([updatedAt])
+}
+
+model ConversationMember {
+  id         String   @id @default(cuid())
+  joinedAt   DateTime @default(now())
+  lastReadAt DateTime @default(now())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation("ChatMembership", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  body      String?
+  createdAt DateTime @default(now())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation("ChatSender", fields: [senderId], references: [id], onDelete: Restrict)
+
+  attachments ChatAttachment[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+model ChatAttachment {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
 }
