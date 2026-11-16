@@ -1,3 +1,4 @@
+import Image from "next/image";
 
 type ReiLogoProps = {
   compact?: boolean;
@@ -17,9 +18,12 @@ export default function ReiLogo({ compact = false, className = "" }: ReiLogoProp
         textAlign: "center",
       }}
     >
-      <img
+      <Image
         src="https://rajaemasindonesia.co.id/wp-content/uploads/2025/01/2-Photoroom.png"
         alt="Logo Raja Emas Indonesia"
+        width={compact ? 64 : 100}
+        height={compact ? 64 : 100}
+        priority
         style={{
           display: "block",
           width: compact ? "64px" : "100px",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import FaviconBadge from "@/components/favicon-badge";
 import ChatView from "./chat/chat-view";
 import { ADMIN_ROLES, MANAGE_ROLES, TASK_MENUS } from "./constants";
@@ -29,6 +30,7 @@ import TeamView from "./views/team-view";
 type OpenForm = "task" | "project" | "member" | null;
 
 export default function DashboardClient({ user }: { user: DashboardUser }) {
+  const router = useRouter();
   const [activeMenu, setActiveMenu] = useState<MenuName>("Dashboard");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -153,7 +155,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     try {
       const response = await fetch("/api/auth/logout", { method: "POST" });
       if (!response.ok) throw new Error("Logout gagal. Silakan coba kembali.");
-      window.location.href = "/login";
+      router.replace("/login");
+      router.refresh();
     } catch (err) {
       ws.setError(errorText(err, "Logout gagal."));
     }

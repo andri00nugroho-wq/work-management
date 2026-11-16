@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
   experimental: {
     agentFeedback: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "rajaemasindonesia.co.id",
+        pathname: "/wp-content/uploads/**",
+      },
+    ],
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
