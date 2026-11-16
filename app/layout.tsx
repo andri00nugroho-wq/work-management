@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
+import { THEMES, THEME_STORAGE_KEY } from "@/lib/theme";
 import StyledJsxRegistry from "./registry";
 import "./globals.css";
 
@@ -24,8 +25,8 @@ export const metadata: Metadata = {
 const themeScript = `
 (function () {
   try {
-    var themes = ["light", "dark", "glass", "gold"];
-    var theme = window.localStorage.getItem("rei-theme");
+    var themes = ${JSON.stringify(THEMES.map((item) => item.id))};
+    var theme = window.localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
     if (themes.indexOf(theme) === -1) {
       theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
