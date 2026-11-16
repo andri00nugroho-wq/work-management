@@ -8,7 +8,7 @@ type Theme = "light" | "dark" | "glass" | "gold";
 const THEMES: Array<{ id: Theme; label: string; icon: string }> = [
   { id: "light", label: "Terang", icon: "☀" },
   { id: "dark", label: "Gelap", icon: "☾" },
-  { id: "glass", label: "Transparan", icon: "◈" },
+  { id: "glass", label: "Glassy", icon: "◈" },
   { id: "gold", label: "Emas", icon: "✦" },
 ];
 

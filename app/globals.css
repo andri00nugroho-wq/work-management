@@ -205,7 +205,7 @@
   --rei-shadow-soft: 0 8px 24px rgba(2, 0, 12, 0.35);
   --rei-shadow-hover: 0 30px 70px rgba(2, 0, 12, 0.62);
   --rei-sheen: rgba(255, 255, 255, 0.16);
-  --rei-blur: blur(20px) saturate(150%);
+  --rei-blur: blur(26px) saturate(175%);
 
   --rei-aura-1: rgba(114, 85, 215, 0.55);
   --rei-aura-2: rgba(212, 175, 55, 0.3);
@@ -272,6 +272,56 @@
   --rei-aura-1: rgba(212, 175, 55, 0.24);
   --rei-aura-2: rgba(84, 54, 170, 0.12);
   --rei-aura-3: rgba(212, 175, 55, 0.14);
+}
+
+/* ==========================================================================
+   Tema Glassy — lapisan kaca buram: latar mesh berwarna, pantulan cahaya
+   tipis di permukaan, dan tepi terang agar efek transparan terlihat jelas.
+   ========================================================================== */
+
+:root[data-theme="glass"] body {
+  background-image:
+    radial-gradient(1100px 780px at 82% -8%, rgba(212, 175, 55, 0.16), transparent 62%),
+    radial-gradient(950px 720px at -12% 18%, rgba(114, 85, 215, 0.3), transparent 64%),
+    radial-gradient(900px 720px at 55% 112%, rgba(155, 92, 246, 0.24), transparent 62%),
+    linear-gradient(160deg, #0b0422 0%, #140a38 48%, #07021a 100%);
+  background-attachment: fixed;
+}
+
+:root[data-theme="glass"] .sidebar,
+:root[data-theme="glass"] .topbar,
+:root[data-theme="glass"] .stat-card,
+:root[data-theme="glass"] .panel,
+:root[data-theme="glass"] .kanban-card,
+:root[data-theme="glass"] .kanban-column,
+:root[data-theme="glass"] .new-task-panel,
+:root[data-theme="glass"] .task-modal,
+:root[data-theme="glass"] .task-link-form,
+:root[data-theme="glass"] .task-tag-form,
+:root[data-theme="glass"] .profile-menu,
+:root[data-theme="glass"] .theme-menu,
+:root[data-theme="glass"] .login-card {
+  background-image: linear-gradient(
+    152deg,
+    rgba(255, 255, 255, 0.11) 0%,
+    rgba(255, 255, 255, 0.02) 42%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  -webkit-backdrop-filter: var(--rei-blur);
+  backdrop-filter: var(--rei-blur);
+}
+
+:root[data-theme="glass"] .stat-card,
+:root[data-theme="glass"] .panel,
+:root[data-theme="glass"] .kanban-card,
+:root[data-theme="glass"] .login-card {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:root[data-theme="glass"] .login-card {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    var(--rei-shadow);
 }
 
 @theme inline {

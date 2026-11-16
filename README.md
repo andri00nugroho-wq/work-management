@@ -4,7 +4,7 @@ Aplikasi internal untuk mengelola pekerjaan, proyek, tim, dan progres Raja Emas 
 
 ## Fitur
 
-- Empat tema tampilan: **Terang**, **Gelap**, **Transparan**, dan **Emas**, tersimpan di browser.
+- Empat tema tampilan: **Terang**, **Gelap**, **Glassy** (kaca transparan), dan **Emas**, tersimpan di browser.
 - Login dengan email dan kata sandi, sesi JWT di cookie httpOnly (berlaku 7 hari).
 - Dashboard ringkasan: statistik tugas, progres proyek, beban tim, aktivitas terbaru.
 - Board Kanban dan tabel tugas dengan pencarian, filter status/prioritas, serta detail tugas.

@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import ReiLogo from "@/components/rei-logo";
+import FaviconBadge from "@/components/favicon-badge";
 
 type UserRole = "SUPER_ADMIN" | "ADMIN" | "SPV" | "MANAGER" | "MEMBER";
 type TaskStatus = "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
@@ -172,7 +173,7 @@ const THEMES: Array<{
 }> = [
   { id: "light", label: "Terang", description: "Bersih dan lega", icon: "☀" },
   { id: "dark", label: "Gelap", description: "Nyaman untuk malam", icon: "☾" },
-  { id: "glass", label: "Transparan", description: "Kaca dengan aurora", icon: "◈" },
+  { id: "glass", label: "Glassy", description: "Kaca buram dengan aurora", icon: "◈" },
   { id: "gold", label: "Emas", description: "Hangat dan mewah", icon: "✦" },
 ];
 
@@ -1180,6 +1181,17 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     [allTasks, dashboardTasks, isMine]
   );
 
+  // Tugas milik saya yang belum selesai ikut menandai favicon.
+  const myOpenTasksCount = useMemo(
+    () =>
+      (allTasks.length ? allTasks : dashboardTasks).filter(
+        (task) => task.status !== "DONE" && isMine(task)
+      ).length,
+    [allTasks, dashboardTasks, isMine]
+  );
+
+  const faviconAlertCount = chatUnreadTotal + myOpenTasksCount;
+
   const tasks = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -1801,6 +1813,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
 
   return (
     <div className="rei-app">
+      <FaviconBadge count={faviconAlertCount} />
       <aside className="sidebar">
         <div className="brand">
          <div
