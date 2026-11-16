@@ -1,15 +1,10 @@
 
 type ReiLogoProps = {
   compact?: boolean;
-  showText?: boolean;
   className?: string;
 };
 
-export default function ReiLogo({
-  compact = false,
-  showText: _showText = false,
-  className = "",
-}: ReiLogoProps) {
+export default function ReiLogo({ compact = false, className = "" }: ReiLogoProps) {
   return (
     <div
       className={className}

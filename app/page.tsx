@@ -1,8 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/current-user";
-// SESUAIKAN path import ini dengan lokasi DashboardClient.tsx Anda
-import DashboardClient from "./dashboard-client";
+import DashboardClient from "@/components/dashboard/dashboard-client";
 
 // Membaca cookie = data dinamis, jadi harus di dalam <Suspense> (syarat cacheComponents).
 async function DashboardGate() {

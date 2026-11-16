@@ -54,8 +54,27 @@ npx tsx scripts/create-super-admin.ts
 
 ## Struktur
 
-- `app/` — halaman, komponen klien dashboard, dan route API (`app/api`)
-- `lib/` — sesi, autentikasi, akses Prisma, dan helper API
+```
+app/                      halaman (/, /login), layout, dan route API (app/api)
+components/
+  dashboard/
+    dashboard-client.tsx  komponen utama: merangkai layout, view, dan modal
+    types.ts, constants.ts
+    hooks/                use-workspace (data & aksi tugas/proyek/tim), use-chat (chat real-time)
+    layout/               sidebar, topbar, pemilih tema, header halaman
+    views/                Dashboard, Proyek, Tim, Laporan
+    tasks/                tabel/kanban tugas dan modal detail (tag, tautan, kendala)
+    chat/                 tampilan chat, composer, dan modal
+    forms/                form buat tugas, proyek, anggota
+    lib/                  helper klien: fetch, format, CSV, perhitungan tugas
+    ui.tsx                komponen kecil yang dipakai ulang
+    dashboard.styles.ts   gaya global dashboard (styled-jsx)
+  rei-logo.tsx, favicon-badge.tsx
+lib/                      sesi, autentikasi, Prisma, helper API, dan tema
+public/brand/             aset logo
+```
+
+- `lib/` — sesi, autentikasi, akses Prisma, helper API, serta tema (`theme.ts` aman untuk server, `use-theme.ts` hook klien)
 - `prisma/` — schema dan migrasi database
 - `scripts/` — utilitas pembuatan dan reset akun Super Admin
 
