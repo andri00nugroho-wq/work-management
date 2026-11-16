@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   authorize, fail, readJson, parseDate, taskScope, oneOf,
-  MANAGE_ROLES, PRIORITIES, STATUSES, TASK_INCLUDE,
+  ADMIN_ROLES, MANAGE_ROLES, PRIORITIES, STATUSES, TASK_INCLUDE,
 } from "@/lib/api";
 import { removeTaskEvidence } from "@/lib/task-evidence";
 import type { Prisma } from "@/app/generated/prisma";
@@ -157,8 +157,9 @@ export async function PATCH(request: Request, { params }: Ctx) {
   }
 }
 
+/** Hapus permanen, termasuk lampiran bukti isu. Hanya Super Admin dan Administrator. */
 export async function DELETE(_request: Request, { params }: Ctx) {
-  const auth = await authorize(MANAGE_ROLES);
+  const auth = await authorize(ADMIN_ROLES);
   if ("response" in auth) return auth.response;
   const { id } = await params;
 

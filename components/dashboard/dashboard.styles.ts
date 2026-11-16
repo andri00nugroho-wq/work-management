@@ -2,10 +2,9 @@ import css from "styled-jsx/css";
 
 /** Gaya global dashboard (dipasang selama dashboard ter-mount). */
 export const dashboardStyles = css.global`
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
   * { box-sizing: border-box; }
-  body { margin: 0; background-color: var(--rei-bg); color: var(--rei-text); font-family: 'DM Sans', sans-serif; font-size: 13px; transition: background-color .45s ease, color .3s ease; }
+  body { margin: 0; background-color: var(--rei-bg); color: var(--rei-text); font-family: Arial, Helvetica, sans-serif; font-size: 13px; transition: background-color .45s ease, color .3s ease; }
   button, input, select, textarea { font: inherit; }
   button { cursor: pointer; }
   button:disabled { cursor: not-allowed; opacity: .65; }
@@ -60,6 +59,7 @@ export const dashboardStyles = css.global`
   .profile-email { overflow-wrap: anywhere; margin-bottom: 10px; color: var(--rei-muted); font-size: 10px; }
   .profile-menu button { width: 100%; padding: 9px; border: 0; border-radius: 7px; background: var(--rei-accent-soft-bg); color: var(--rei-accent-soft-text); text-align: left; font-weight: 700; transition: filter .18s ease; }
   .profile-menu button:hover { filter: brightness(1.06); }
+  .profile-menu button + button { margin-top: 6px; }
   .main-content { min-height: 100vh; margin-left: 248px; }
   .topbar { position: sticky; top: 0; z-index: 5; height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 0 36px; border-bottom: 1px solid var(--rei-border); background: var(--rei-topbar-bg); backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%); transition: background-color .3s ease, border-color .3s ease; }
   .breadcrumb { display: flex; align-items: center; gap: 12px; color: var(--rei-muted); font-size: 11px; }
@@ -249,6 +249,8 @@ export const dashboardStyles = css.global`
   .project-description { margin: 14px 0 0; color: var(--rei-muted); font-size: 10px; line-height: 1.6; }
   .project-card-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rei-border-soft); }
   .danger-text { color: var(--rei-danger-text) !important; }
+  .danger-button { border-color: var(--rei-danger-border); color: var(--rei-danger-text); }
+  .danger-button:hover { background: var(--rei-danger-soft); color: var(--rei-danger-text); }
   .member-avatar { display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0; border-radius: 50%; background: var(--rei-accent-soft-bg); color: var(--rei-accent-soft-text); font-size: 9px; font-weight: 700; }
   .report-list { display: grid; gap: 16px; margin-top: 20px; }
   .report-row-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 7px; color: var(--rei-muted); font-size: 10px; }
@@ -310,6 +312,11 @@ export const dashboardStyles = css.global`
   .task-link-error { color: var(--rei-danger-text); }
   .task-link-notice { color: var(--rei-success-text); }
   .task-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+  .task-modal-footer { display: flex; justify-content: flex-end; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--rei-border); }
+  .password-modal { width: min(440px, 100%); }
+  .password-form { margin-top: 18px; }
+  .password-grid { grid-template-columns: 1fr; }
+  .password-error { margin: 0 0 12px; color: var(--rei-danger-text); font-size: 10px; }
   .task-issues-section { padding-top: 18px; margin-top: 18px; border-top: 1px solid var(--rei-border); }
   .task-issues-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .task-issues-heading span { color: var(--rei-muted); font-size: 10px; }

@@ -1,19 +1,8 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Geist, Geist_Mono } from "next/font/google";
 import { THEMES, THEME_STORAGE_KEY } from "@/lib/theme";
 import StyledJsxRegistry from "./registry";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "REI Work Management",
@@ -22,31 +11,28 @@ export const metadata: Metadata = {
 };
 
 // Terapkan tema tersimpan sebelum paint agar tidak ada kedipan warna.
-const themeScript = `
+const preferenceScript = `
 (function () {
+  var root = document.documentElement;
   try {
     var themes = ${JSON.stringify(THEMES.map((item) => item.id))};
     var theme = window.localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
     if (themes.indexOf(theme) === -1) {
       theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
-    document.documentElement.dataset.theme = theme;
+    root.dataset.theme = theme;
   } catch (error) {
-    document.documentElement.dataset.theme = "light";
+    root.dataset.theme = "light";
   }
 })();
 `;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="id"
-      suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="id" suppressHydrationWarning className="h-full antialiased">
       <body className="min-h-full flex flex-col">
-        <Script id="rei-theme-init" strategy="beforeInteractive">
-          {themeScript}
+        <Script id="rei-preferences-init" strategy="beforeInteractive">
+          {preferenceScript}
         </Script>
         <StyledJsxRegistry>{children}</StyledJsxRegistry>
       </body>

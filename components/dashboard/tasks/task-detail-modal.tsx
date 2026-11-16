@@ -13,14 +13,18 @@ export default function TaskDetailModal({
   userId,
   members,
   canEdit,
+  canDelete,
   onPatch,
+  onDelete,
   onClose,
 }: {
   task: Task;
   userId: string;
   members: Member[];
   canEdit: boolean;
+  canDelete: boolean;
   onPatch: TaskPatcher;
+  onDelete: () => void;
   onClose: () => void;
 }) {
   return (
@@ -75,6 +79,18 @@ export default function TaskDetailModal({
         />
         <TaskLinksSection task={task} canEdit={canEdit} onPatch={onPatch} onClose={onClose} />
         <TaskIssuesSection task={task} onPatch={onPatch} />
+
+        {canDelete && (
+          <div className="task-modal-footer">
+            <button
+              type="button"
+              className="secondary-button danger-button"
+              onClick={onDelete}
+            >
+              Hapus tugas
+            </button>
+          </div>
+        )}
       </section>
     </Modal>
   );

@@ -14,6 +14,7 @@ export default function Sidebar({
   onToggleProfileMenu,
   onSelectMenu,
   onHelp,
+  onChangePassword,
   onLogout,
 }: {
   user: DashboardUser;
@@ -24,6 +25,7 @@ export default function Sidebar({
   onToggleProfileMenu: () => void;
   onSelectMenu: (menu: MenuName) => void;
   onHelp: () => void;
+  onChangePassword: () => void;
   onLogout: () => void;
 }) {
   return (
@@ -94,6 +96,7 @@ export default function Sidebar({
         {showProfileMenu && (
           <div className="profile-menu">
             <div className="profile-email">{user.email}</div>
+            <button onClick={onChangePassword}>Ganti kata sandi</button>
             <button onClick={onLogout}>Keluar dari akun ↗</button>
           </div>
         )}

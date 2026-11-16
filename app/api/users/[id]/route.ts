@@ -4,6 +4,42 @@ import { authorize, fail, readJson, oneOf, ADMIN_ROLES, ROLES } from "@/lib/api"
 
 type Ctx = { params: Promise<{ id: string }> };
 
+/** Soft delete: akun dinonaktifkan agar riwayat tugas dan chat tetap utuh. */
+export async function DELETE(_request: Request, { params }: Ctx) {
+  const auth = await authorize(ADMIN_ROLES);
+  if ("response" in auth) return auth.response;
+  const { user } = auth;
+  const { id } = await params;
+
+  if (id === user.id) return fail("Anda tidak dapat menghapus akun sendiri.", 403);
+
+  try {
+    const target = await prisma.user.findFirst({
+      where: { id, isActive: true },
+      select: { id: true, role: true },
+    });
+    if (!target) return fail("Anggota tidak ditemukan.", 404);
+
+    if (target.role === "SUPER_ADMIN") {
+      if (user.role !== "SUPER_ADMIN") {
+        return fail("Hanya Super Admin yang dapat menghapus Super Admin.", 403);
+      }
+      const remainingSuperAdmins = await prisma.user.count({
+        where: { role: "SUPER_ADMIN", isActive: true, id: { not: id } },
+      });
+      if (remainingSuperAdmins === 0) {
+        return fail("Super Admin terakhir tidak dapat dihapus.", 409);
+      }
+    }
+
+    await prisma.user.update({ where: { id }, data: { isActive: false } });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("DELETE /api/users/[id]", error);
+    return fail("Anggota gagal dihapus.", 500);
+  }
+}
+
 export async function PATCH(request: Request, { params }: Ctx) {
   const auth = await authorize(ADMIN_ROLES);
   if ("response" in auth) return auth.response;

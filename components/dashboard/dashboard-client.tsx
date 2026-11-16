@@ -5,6 +5,7 @@ import FaviconBadge from "@/components/favicon-badge";
 import ChatView from "./chat/chat-view";
 import { ADMIN_ROLES, MANAGE_ROLES, TASK_MENUS } from "./constants";
 import { dashboardStyles } from "./dashboard.styles";
+import ChangePasswordModal from "./forms/change-password-modal";
 import MemberForm from "./forms/member-form";
 import ProjectForm from "./forms/project-form";
 import TaskForm from "./forms/task-form";
@@ -34,6 +35,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [openForm, setOpenForm] = useState<OpenForm>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const ws = useWorkspace(activeMenu);
@@ -148,6 +150,18 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     );
   }
 
+  async function deleteTask(task: Task) {
+    const deleted = await ws.deleteTask(task);
+    if (deleted) setSelectedTask(null);
+  }
+
+  function openPasswordForm() {
+    setShowProfileMenu(false);
+    ws.setError("");
+    ws.setNotice("");
+    setShowPasswordForm(true);
+  }
+
   async function logout() {
     ws.setError("");
     try {
@@ -176,6 +190,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         onToggleProfileMenu={() => setShowProfileMenu((open) => !open)}
         onSelectMenu={switchMenu}
         onHelp={() => ws.setNotice("Hubungi administrator jika Anda memerlukan bantuan.")}
+        onChangePassword={openPasswordForm}
         onLogout={logout}
       />
 
@@ -267,6 +282,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
               loading={ws.loading}
               canAdmin={canAdmin}
               onRoleChange={(member, role) => void ws.updateMemberRole(member, role)}
+              onDelete={(member) => void ws.deleteMember(member)}
               onRefresh={refresh}
             />
           )}
@@ -314,8 +330,20 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
           userId={user.id}
           members={ws.members}
           canEdit={canEditSelectedTask}
+          canDelete={canAdmin}
           onPatch={patchTask}
+          onDelete={() => void deleteTask(selectedTask)}
           onClose={() => setSelectedTask(null)}
+        />
+      )}
+
+      {showPasswordForm && (
+        <ChangePasswordModal
+          onClose={() => setShowPasswordForm(false)}
+          onSuccess={(message) => {
+            setShowPasswordForm(false);
+            ws.setNotice(message);
+          }}
         />
       )}
 

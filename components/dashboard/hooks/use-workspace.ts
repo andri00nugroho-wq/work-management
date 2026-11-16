@@ -219,6 +219,21 @@ export function useWorkspace(activeMenu: MenuName) {
     }
   }
 
+  async function deleteTask(task: Task) {
+    if (
+      !window.confirm(
+        `Hapus tugas "${task.title}"? Tugas, tautan, dan riwayat kendalanya akan dihapus permanen.`
+      )
+    ) {
+      return false;
+    }
+    return mutate(
+      () => request(`/api/tasks/${task.id}`, { method: "DELETE" }, "Tugas gagal dihapus."),
+      "Tugas berhasil dihapus.",
+      "Gagal menghapus tugas."
+    );
+  }
+
   function createProject(input: ProjectInput) {
     return mutate(
       () =>
@@ -282,6 +297,26 @@ export function useWorkspace(activeMenu: MenuName) {
     );
   }
 
+  async function deleteMember(member: Member) {
+    if (
+      !window.confirm(
+        `Hapus "${member.name}" dari tim? Akun akan dinonaktifkan dan tidak bisa login lagi.`
+      )
+    ) {
+      return;
+    }
+    await mutate(
+      () =>
+        request(
+          `/api/users/${member.id}`,
+          { method: "DELETE" },
+          "Anggota gagal dihapus."
+        ),
+      "Anggota berhasil dihapus.",
+      "Gagal menghapus anggota."
+    );
+  }
+
   return {
     data,
     allTasks,
@@ -300,10 +335,12 @@ export function useWorkspace(activeMenu: MenuName) {
     patchTask,
     createTask,
     updateTaskStatus,
+    deleteTask,
     createProject,
     deleteProject,
     createMember,
     updateMemberRole,
+    deleteMember,
   };
 }
 

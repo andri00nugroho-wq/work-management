@@ -13,6 +13,7 @@ export default function TeamView({
   loading,
   canAdmin,
   onRoleChange,
+  onDelete,
   onRefresh,
 }: {
   user: DashboardUser;
@@ -21,6 +22,7 @@ export default function TeamView({
   loading: boolean;
   canAdmin: boolean;
   onRoleChange: (member: Member, role: UserRole) => void;
+  onDelete: (member: Member) => void;
   onRefresh: () => void;
 }) {
   return (
@@ -41,13 +43,14 @@ export default function TeamView({
               <th>DIVISI</th>
               <th>TUGAS</th>
               <th>SELESAI</th>
+              {canAdmin && <th>AKSI</th>}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <EmptyRow colSpan={6}>Memuat data tim...</EmptyRow>
+              <EmptyRow colSpan={canAdmin ? 7 : 6}>Memuat data tim...</EmptyRow>
             ) : members.length === 0 ? (
-              <EmptyRow colSpan={6}>Belum ada anggota tim.</EmptyRow>
+              <EmptyRow colSpan={canAdmin ? 7 : 6}>Belum ada anggota tim.</EmptyRow>
             ) : (
               members.map((member) => {
                 const list = tasksOfMember(member, allTasks);
@@ -58,6 +61,10 @@ export default function TeamView({
                     user.role === "SUPER_ADMIN" ||
                     member.role === "SUPER_ADMIN"
                 );
+                const canDelete =
+                  canAdmin &&
+                  member.id !== user.id &&
+                  (member.role !== "SUPER_ADMIN" || user.role === "SUPER_ADMIN");
 
                 return (
                   <tr key={member.id}>
@@ -91,6 +98,21 @@ export default function TeamView({
                     <td>{member.division?.name ?? "—"}</td>
                     <td>{list.length}</td>
                     <td>{countDone(list)}</td>
+                    {canAdmin && (
+                      <td>
+                        {canDelete ? (
+                          <button
+                            className="text-button danger-text"
+                            onClick={() => onDelete(member)}
+                            aria-label={`Hapus ${member.name} dari tim`}
+                          >
+                            Hapus
+                          </button>
+                        ) : (
+                          <span className="project-tag">—</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })
