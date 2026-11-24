@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authorize, fail, oneOf, readJson } from "@/lib/api";
+import { authorize, fail, oneOf, readJson, STAFF_ROLES } from "@/lib/api";
 import { publishChatEvent } from "@/lib/chat-events";
 import { onlineChatUserIds } from "@/lib/chat-presence";
 import { CHAT_STATUSES } from "@/lib/chat";
 
 export async function GET() {
-  const auth = await authorize();
+  const auth = await authorize(STAFF_ROLES);
   if ("response" in auth) return auth.response;
 
   try {
     const users = await prisma.user.findMany({
-      where: { isActive: true },
+      where: { isActive: true, role: { not: "GUEST" } },
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -42,7 +42,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await authorize();
+  const auth = await authorize(STAFF_ROLES);
   if ("response" in auth) return auth.response;
 
   const body = await readJson(request);

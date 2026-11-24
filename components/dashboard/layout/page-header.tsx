@@ -1,3 +1,5 @@
+import { faFileExport } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { ROLE_LABEL } from "../constants";
 import type { DashboardUser, MenuName } from "../types";
 
@@ -5,11 +7,13 @@ export default function PageHeader({
   user,
   activeMenu,
   primaryAction,
+  secondaryAction = null,
   onExport,
 }: {
   user: DashboardUser;
   activeMenu: MenuName;
   primaryAction: { label: string; onClick: () => void } | null;
+  secondaryAction?: { label: string; onClick: () => void } | null;
   onExport: (() => void) | null;
 }) {
   return (
@@ -26,7 +30,12 @@ export default function PageHeader({
       <div className="welcome-actions">
         {onExport && (
           <button className="secondary-button" onClick={onExport}>
-            ↓ Ekspor CSV
+            <Icon icon={faFileExport} /> Ekspor CSV
+          </button>
+        )}
+        {secondaryAction && (
+          <button className="secondary-button" onClick={secondaryAction.onClick}>
+            {secondaryAction.label}
           </button>
         )}
         {primaryAction && (

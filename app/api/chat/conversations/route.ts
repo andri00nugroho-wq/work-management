@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authorize, fail, readJson } from "@/lib/api";
+import { authorize, fail, readJson, STAFF_ROLES } from "@/lib/api";
 import { loadConversationSummaries } from "@/lib/chat";
 import { publishChatEvent } from "@/lib/chat-events";
 
 export async function GET() {
-  const auth = await authorize();
+  const auth = await authorize(STAFF_ROLES);
   if ("response" in auth) return auth.response;
 
   try {
@@ -18,7 +18,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const auth = await authorize();
+  const auth = await authorize(STAFF_ROLES);
   if ("response" in auth) return auth.response;
   const { user } = auth;
 
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     const members = await prisma.user.findMany({
-      where: { id: { in: memberIds }, isActive: true },
+      where: { id: { in: memberIds }, isActive: true, role: { not: "GUEST" } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authorize, fail, readJson } from "@/lib/api";
+import { authorize, fail, readJson, STAFF_ROLES } from "@/lib/api";
 import {
   CHAT_MESSAGE_INCLUDE,
   serializeChatMessage,
@@ -27,7 +27,7 @@ async function findConversation(conversationId: string, userId: string) {
 }
 
 export async function GET(request: Request, { params }: Ctx) {
-  const auth = await authorize();
+  const auth = await authorize(STAFF_ROLES);
   if ("response" in auth) return auth.response;
   const { id } = await params;
 
@@ -70,7 +70,7 @@ export async function GET(request: Request, { params }: Ctx) {
 }
 
 export async function POST(request: Request, { params }: Ctx) {
-  const auth = await authorize();
+  const auth = await authorize(STAFF_ROLES);
   if ("response" in auth) return auth.response;
   const { user } = auth;
   const { id } = await params;

@@ -1,5 +1,7 @@
 "use client";
 
+import { faPaperclip } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { useState } from "react";
 import { ISSUE_EVIDENCE_TYPES, ISSUE_MAX_FILE_SIZE } from "../constants";
 import { errorText, formatDateTime, formatFileSize } from "../lib/format";
@@ -94,7 +96,7 @@ export default function TaskIssuesSection({
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  ↗ Bukti: {report.evidenceName}
+                  <Icon icon={faPaperclip} /> Bukti: {report.evidenceName}
                   {report.evidenceSize !== null && ` · ${formatFileSize(report.evidenceSize)}`}
                 </a>
               )}

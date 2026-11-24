@@ -1,5 +1,7 @@
 "use client";
 
+import { faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { useEffect, useMemo, useState } from "react";
 import { CHAT_STATUSES, CHAT_STATUS_META, ROLE_LABEL } from "../constants";
 import type { ChatState } from "../hooks/use-chat";
@@ -91,7 +93,7 @@ export default function ChatTeamModal({
                 }`}
                 onClick={() => chat.setMyStatus(status)}
               >
-                <span className="chat-status-icon">{CHAT_STATUS_META[status].icon}</span>
+                <span className="chat-status-icon"><Icon icon={CHAT_STATUS_META[status].icon} /></span>
                 {CHAT_STATUS_META[status].label}
               </button>
             ))}
@@ -115,7 +117,7 @@ export default function ChatTeamModal({
         </form>
 
         <div className="search-box chat-team-search">
-          <span>⌕</span>
+          <span><Icon icon={faMagnifyingGlass} /></span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}

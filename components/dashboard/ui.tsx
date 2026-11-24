@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { faCircle, faRotateRight, faXmark } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { PRIORITY_LABEL, STATUSES, STATUS_LABEL } from "./constants";
 import { initials, percent } from "./lib/format";
-import type { TaskPriority, TaskStatus } from "./types";
+import type { Label, TaskPriority, TaskStatus } from "./types";
 
 export function StatCard({
   label,
@@ -15,7 +18,7 @@ export function StatCard({
   label: string;
   value: number;
   note: string;
-  icon: string;
+  icon: IconDefinition;
   color: string;
 }) {
   return (
@@ -26,14 +29,14 @@ export function StatCard({
           className="stat-icon"
           style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}
         >
-          {icon}
+          <Icon icon={icon} />
         </span>
       </div>
       <div className="stat-value">
         <AnimatedNumber value={value} />
       </div>
       <div className="stat-note">
-        <span style={{ color }}>●</span> {note}
+        <span style={{ color }}><Icon icon={faCircle} /></span> {note}
       </div>
     </article>
   );
@@ -158,7 +161,7 @@ export function Alert({
     >
       <span>{message}</span>
       <button onClick={onClose} aria-label="Tutup pesan">
-        ×
+        <Icon icon={faXmark} />
       </button>
     </div>
   );
@@ -210,7 +213,7 @@ export function ModalHeading({
         <h2 id={titleId}>{title}</h2>
       </div>
       <button type="button" className="task-modal-close" onClick={onClose} aria-label={closeLabel}>
-        ×
+        <Icon icon={faXmark} />
       </button>
     </div>
   );
@@ -226,16 +229,19 @@ export function StatusSelect({
   title,
   onChange,
   stopClick = false,
+  disabled = false,
 }: {
   status: TaskStatus;
   title: string;
   onChange: (status: TaskStatus) => void;
   stopClick?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <select
       className={`status-select status-${status.toLowerCase()}`}
       value={status}
+      disabled={disabled}
       onClick={stopClick ? (event) => event.stopPropagation() : undefined}
       onChange={(event) => onChange(event.target.value as TaskStatus)}
       aria-label={`Ubah status ${title}`}
@@ -303,8 +309,106 @@ export function TableFooter({ label, onRefresh }: { label: ReactNode; onRefresh:
     <div className="table-footer">
       <span>{label}</span>
       <button className="text-button" onClick={onRefresh}>
-        ↻ Perbarui data
+        <Icon icon={faRotateRight} /> Perbarui data
       </button>
     </div>
+  );
+}
+
+/** Kerangka bagian di modal detail tugas: judul, keterangan, info kanan, isi. */
+export function TaskSection({
+  title,
+  subtitle,
+  aside,
+  className = "",
+  children,
+}: {
+  title: string;
+  subtitle?: ReactNode;
+  aside?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`task-tags-section ${className}`.trim()}>
+      <div className="task-tags-heading">
+        <div>
+          <h3>{title}</h3>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
+        {aside !== undefined && <span>{aside}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Pesan galat/sukses kecil di bawah bagian. */
+export function SectionMessages({ error, notice }: { error: string; notice: string }) {
+  return (
+    <>
+      {error && (
+        <p className="task-link-error" role="alert">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="task-link-notice" role="status">
+          {notice}
+        </p>
+      )}
+    </>
+  );
+}
+
+/** Deretan label berwarna. */
+export function LabelChips({ labels, small = false }: { labels?: Array<{ label: Label }>; small?: boolean }) {
+  if (!labels?.length) return null;
+  return (
+    <span className={`label-chips ${small ? "label-chips-small" : ""}`.trim()}>
+      {labels.map(({ label }) => (
+        <span
+          key={label.id}
+          className="label-chip"
+          style={{ "--label-color": label.color } as CSSProperties}
+        >
+          {label.name}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Pilih beberapa label (checkbox berwarna). */
+export function LabelPicker({
+  labels,
+  value,
+  onChange,
+}: {
+  labels: Label[];
+  value: string[];
+  onChange: (labelIds: string[]) => void;
+}) {
+  function toggle(labelId: string) {
+    onChange(value.includes(labelId) ? value.filter((id) => id !== labelId) : [...value, labelId]);
+  }
+  return (
+    <fieldset className="description-field label-picker">
+      <legend>Label</legend>
+      {labels.length === 0 ? (
+        <small>Belum ada label. Buat label di menu Pengaturan.</small>
+      ) : (
+        labels.map((label) => (
+          <label
+            key={label.id}
+            className={`label-option ${value.includes(label.id) ? "active" : ""}`}
+            style={{ "--label-color": label.color } as CSSProperties}
+          >
+            <input type="checkbox" checked={value.includes(label.id)} onChange={() => toggle(label.id)} />
+            {label.name}
+          </label>
+        ))
+      )}
+    </fieldset>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { faCircle, faDownload, faFile } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { useEffect, useRef } from "react";
 import { CHAT_STATUS_META } from "../constants";
 import type { ChatState } from "../hooks/use-chat";
@@ -82,7 +84,7 @@ export default function ChatThread({
           onClick={onOpenTeam}
           title="Lihat status tim"
         >
-          ♙ {chat.onlineCount} online
+          <Icon icon={faCircle} /> {chat.onlineCount} online
         </button>
       </header>
 
@@ -145,13 +147,13 @@ function MessageItem({ message, own }: { message: ChatMessage; own: boolean }) {
                 ) : (
                   <a key={attachment.id} className="chat-file" href={attachment.url}>
                     <span className="chat-file-icon">
-                      {attachment.mimeType === "application/pdf" ? "PDF" : "▢"}
+                      {attachment.mimeType === "application/pdf" ? "PDF" : <Icon icon={faFile} />}
                     </span>
                     <span className="chat-file-text">
                       <strong>{attachment.name}</strong>
                       <small>{formatFileSize(attachment.size)}</small>
                     </span>
-                    <span className="chat-file-download">↓</span>
+                    <span className="chat-file-download"><Icon icon={faDownload} /></span>
                   </a>
                 )
               )}

@@ -1,3 +1,6 @@
+import { faCrown, faDroplet, faMoon, faSun } from "@fortawesome/free-solid-svg-icons";
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+
 export type Theme = "light" | "dark" | "glass" | "gold";
 
 export const THEME_STORAGE_KEY = "rei-theme";
@@ -7,12 +10,12 @@ export const THEMES: Array<{
   id: Theme;
   label: string;
   description: string;
-  icon: string;
+  icon: IconDefinition;
 }> = [
-  { id: "light", label: "Terang", description: "Bersih dan lega", icon: "☀" },
-  { id: "dark", label: "Gelap", description: "Nyaman untuk malam", icon: "☾" },
-  { id: "glass", label: "Glassy", description: "Kaca buram dengan aurora", icon: "◈" },
-  { id: "gold", label: "Emas", description: "Hangat dan mewah", icon: "✦" },
+  { id: "light", label: "Terang", description: "Bersih dan lega", icon: faSun },
+  { id: "dark", label: "Gelap", description: "Nyaman untuk malam", icon: faMoon },
+  { id: "glass", label: "Glassy", description: "Kaca buram dengan aurora", icon: faDroplet },
+  { id: "gold", label: "Emas", description: "Hangat dan mewah", icon: faCrown },
 ];
 
 export function applyTheme(next: Theme) {

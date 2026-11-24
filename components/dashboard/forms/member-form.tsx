@@ -3,17 +3,19 @@
 import { useState } from "react";
 import { ROLES, ROLE_LABEL } from "../constants";
 import type { MemberInput } from "../hooks/use-workspace";
-import type { UserRole } from "../types";
+import type { Division, UserRole } from "../types";
 import FormShell from "./form-shell";
 
 export default function MemberForm({
   currentRole,
+  divisions,
   saving,
   onSubmit,
   onInvalid,
   onCancel,
 }: {
   currentRole: UserRole;
+  divisions: Division[];
   saving: boolean;
   onSubmit: (input: MemberInput) => Promise<boolean>;
   onInvalid: (message: string) => void;
@@ -24,6 +26,7 @@ export default function MemberForm({
     email: "",
     password: "",
     role: "MEMBER",
+    divisionId: "",
   });
 
   // Hanya Super Admin yang boleh membuat Super Admin lain.
@@ -77,6 +80,21 @@ export default function MemberForm({
           {roles.map((role) => (
             <option key={role} value={role}>
               {ROLE_LABEL[role]}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        Divisi
+        <select
+          value={form.divisionId}
+          onChange={(event) => setForm({ ...form, divisionId: event.target.value })}
+        >
+          <option value="">Tanpa divisi</option>
+          {divisions.map((division) => (
+            <option key={division.id} value={division.id}>
+              {division.name}
             </option>
           ))}
         </select>

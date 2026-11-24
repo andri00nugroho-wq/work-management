@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { THEMES, THEME_STORAGE_KEY } from "@/lib/theme";
 import StyledJsxRegistry from "./registry";
+import "@fortawesome/fontawesome-svg-core/styles.css";
 import "./globals.css";
 
 const geistSans = Geist({

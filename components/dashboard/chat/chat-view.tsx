@@ -1,5 +1,7 @@
 "use client";
 
+import { faArrowRight, faComments, faMagnifyingGlass } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { useMemo, useState } from "react";
 import { CHAT_STATUS_META } from "../constants";
 import type { ChatState } from "../hooks/use-chat";
@@ -82,7 +84,7 @@ export default function ChatView({
               onClick={() => setShowTeam(true)}
               title="Atur status kehadiran Anda"
             >
-              <span className="chat-status-icon">{status.icon}</span>
+              <span className="chat-status-icon"><Icon icon={status.icon} /></span>
               <span className="chat-self-status-text">
                 <small>Status saya</small>
                 <strong>{status.label}</strong>
@@ -103,7 +105,7 @@ export default function ChatView({
           </div>
 
           <div className="search-box chat-search">
-            <span>⌕</span>
+            <span><Icon icon={faMagnifyingGlass} /></span>
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -120,7 +122,7 @@ export default function ChatView({
               <div className="chat-list-empty">
                 Belum ada percakapan.
                 <button type="button" className="text-button" onClick={openCreate}>
-                  Mulai sekarang →
+                  Mulai sekarang <Icon icon={faArrowRight} />
                 </button>
               </div>
             )}
@@ -146,7 +148,7 @@ export default function ChatView({
             />
           ) : (
             <div className="chat-idle">
-              <span className="chat-idle-mark">✉</span>
+              <span className="chat-idle-mark"><Icon icon={faComments} /></span>
               <strong>Pilih percakapan</strong>
               <p>
                 Pilih dari daftar di samping, atau mulai percakapan baru untuk mengirim pesan dan

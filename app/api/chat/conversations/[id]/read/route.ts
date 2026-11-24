@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authorize, fail } from "@/lib/api";
+import { authorize, fail, STAFF_ROLES } from "@/lib/api";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(_request: Request, { params }: Ctx) {
-  const auth = await authorize();
+  const auth = await authorize(STAFF_ROLES);
   if ("response" in auth) return auth.response;
   const { id } = await params;
 

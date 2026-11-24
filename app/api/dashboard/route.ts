@@ -11,7 +11,16 @@ export async function GET() {
   today.setHours(0, 0, 0, 0);
 
   try {
-    const [grouped, overdue, recentTasks, projects, totalUsers, totalDivisions, totalProjects] =
+    const [
+      grouped,
+      overdue,
+      recentTasks,
+      projects,
+      totalUsers,
+      totalDivisions,
+      totalProjects,
+      recentActivities,
+    ] =
       await Promise.all([
         prisma.task.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
         prisma.task.count({
@@ -32,6 +41,19 @@ export async function GET() {
         prisma.user.count({ where: { isActive: true } }),
         prisma.division.count({ where: { isActive: true } }),
         prisma.project.count({ where: { isActive: true } }),
+        // Aktivitas hanya dari tugas yang boleh dilihat pengguna ini.
+        prisma.activity.findMany({
+          where: { task: { is: scope } },
+          orderBy: { createdAt: "desc" },
+          take: 12,
+          select: {
+            id: true,
+            message: true,
+            createdAt: true,
+            user: { select: { id: true, name: true } },
+            task: { select: { id: true, title: true } },
+          },
+        }),
       ]);
 
     const count = (status: string) =>
@@ -56,6 +78,7 @@ export async function GET() {
       },
       recentTasks,
       projects,
+      recentActivities,
     });
   } catch (error) {
     console.error("GET /api/dashboard", error);

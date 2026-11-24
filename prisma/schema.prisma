@@ -1,11 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
   output   = "../app/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -14,6 +13,7 @@ enum UserRole {
   SPV
   MANAGER
   MEMBER
+  GUEST
 }
 
 enum TaskStatus {
@@ -28,6 +28,27 @@ enum TaskPriority {
   MEDIUM
   HIGH
   URGENT
+}
+
+enum Recurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum NotificationType {
+  ASSIGNED
+  MENTIONED
+  COMMENTED
+  STATUS_CHANGED
+  TAGGED
+  DUE_SOON
+  OVERDUE
+  DEPENDENCY_READY
+  RECURRING
+  AUTOMATION
+  REQUEST
 }
 
 enum ChatKind {
@@ -70,6 +91,19 @@ model User {
   chatStatus     ChatStatus @default(AVAILABLE)
   chatStatusNote String?
 
+  // Sesi (JWT) yang terbit sebelum waktu ini dianggap tidak berlaku.
+  passwordChangedAt   DateTime?
+  // Token rahasia untuk feed kalender .ics pribadi.
+  calendarToken       String?          @unique
+  // Kapasitas kerja per minggu (jam) untuk tampilan beban kerja.
+  weeklyCapacityHours Int              @default(40)
+  savedViews          SavedView[]
+  taskComments        TaskComment[]    @relation("CommentAuthor")
+  taskAttachments     TaskAttachment[] @relation("AttachmentUploader")
+  notifications       Notification[]   @relation("NotificationRecipient")
+  timeEntries         TimeEntry[]
+  apiKeys             ApiKey[]
+
   chatMemberships      ConversationMember[] @relation("ChatMembership")
   chatMessages         Message[]            @relation("ChatSender")
   createdConversations Conversation[]       @relation("ChatCreator")
@@ -102,14 +136,29 @@ model Project {
 }
 
 model Task {
-  id          String       @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus   @default(TODO)
-  priority    TaskPriority @default(MEDIUM)
-  dueDate     DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id              String       @id @default(cuid())
+  title           String
+  description     String?
+  status          TaskStatus   @default(TODO)
+  priority        TaskPriority @default(MEDIUM)
+  startDate       DateTime?
+  dueDate         DateTime?
+  completedAt     DateTime?
+  isMilestone     Boolean      @default(false)
+  recurrence      Recurrence   @default(NONE)
+  estimateMinutes Int?
+
+  // Diisi bila tugas berasal dari formulir permintaan.
+  intakeFormId   String?
+  intakeForm     IntakeForm? @relation(fields: [intakeFormId], references: [id], onDelete: SetNull)
+  requesterName  String?
+  requesterEmail String?
+
+  // Penanda agar pengingat tenggat & peringatan terlambat dikirim sekali saja.
+  dueReminderSentAt DateTime?
+  overdueNotifiedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   divisionId String?
   division   Division? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
@@ -123,11 +172,19 @@ model Task {
   creatorId String
   creator   User   @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Restrict)
 
-  assignments  TaskAssignment[]
-  activities   Activity[]
-  links        TaskLink[]
-  issueReports TaskIssueReport[]
-  tags         TaskTag[]
+  assignments   TaskAssignment[]
+  activities    Activity[]
+  links         TaskLink[]
+  issueReports  TaskIssueReport[]
+  tags          TaskTag[]
+  labels        TaskLabel[]
+  subtasks      Subtask[]
+  comments      TaskComment[]
+  attachments   TaskAttachment[]
+  dependsOn     TaskDependency[]  @relation("DependentTask")
+  blocking      TaskDependency[]  @relation("BlockingTask")
+  notifications Notification[]
+  timeEntries   TimeEntry[]
 
   @@index([divisionId])
   @@index([creatorId])
@@ -276,4 +333,204 @@ model ChatAttachment {
   message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
+}
+
+// Label kategori bebas untuk mengelompokkan tugas lintas divisi.
+model Label {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   @default("#6d5bd0")
+  createdAt DateTime @default(now())
+
+  tasks TaskLabel[]
+}
+
+model TaskLabel {
+  taskId  String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  labelId String
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@index([labelId])
+}
+
+// Kombinasi filter yang disimpan pengguna sebagai tampilan favorit.
+model SavedView {
+  id        String   @id @default(cuid())
+  name      String
+  filters   Json
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Langkah kecil (checklist) di dalam satu tugas.
+model Subtask {
+  id          String    @id @default(cuid())
+  title       String
+  done        Boolean   @default(false)
+  position    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, position])
+}
+
+// Diskusi di dalam kartu tugas; mentionIds = pengguna yang di-@mention.
+model TaskComment {
+  id         String    @id @default(cuid())
+  body       String
+  mentionIds String[]  @default([])
+  createdAt  DateTime  @default(now())
+  editedAt   DateTime?
+
+  taskId   String
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+}
+
+// Berkas lampiran tugas. Nama sama diunggah ulang = versi revisi berikutnya.
+model TaskAttachment {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  mimeType  String
+  size      Int
+  version   Int      @default(1)
+  note      String?
+  createdAt DateTime @default(now())
+
+  taskId       String
+  task         Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User   @relation("AttachmentUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([taskId, name])
+}
+
+// taskId baru bisa dimulai setelah dependsOnId selesai.
+model TaskDependency {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  taskId      String
+  task        Task   @relation("DependentTask", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnId String
+  dependsOn   Task   @relation("BlockingTask", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnId])
+  @@index([dependsOnId])
+}
+
+// Pengaturan aplikasi (mis. batas WIP Kanban) sebagai pasangan kunci-nilai.
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// Kotak masuk pemberitahuan per pengguna.
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  body      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  userId  String
+  user    User    @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  taskId  String?
+  task    Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actorId String?
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+// Catatan waktu kerja: timer (endedAt null = sedang berjalan) atau input manual.
+model TimeEntry {
+  id        String    @id @default(cuid())
+  startedAt DateTime
+  endedAt   DateTime?
+  minutes   Int?
+  note      String?
+  createdAt DateTime  @default(now())
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId, endedAt])
+}
+
+// Kerangka proyek siap pakai; items = daftar tugas (judul, offset hari, sub-tugas, dependensi).
+model ProjectTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  items       Json
+  createdById String?
+  createdAt   DateTime @default(now())
+}
+
+// Formulir permintaan kerja yang otomatis menjadi tugas.
+model IntakeForm {
+  id              String       @id @default(cuid())
+  name            String
+  slug            String       @unique
+  description     String?
+  projectId       String?
+  assigneeId      String?
+  defaultPriority TaskPriority @default(MEDIUM)
+  isPublic        Boolean      @default(false)
+  isActive        Boolean      @default(true)
+  createdById     String
+  createdAt       DateTime     @default(now())
+
+  tasks Task[]
+}
+
+// Kunci API pribadi (hanya hash yang disimpan).
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  prefix     String
+  keyHash    String    @unique
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Webhook keluar: JSON bertanda tangan HMAC, atau format Slack/Teams.
+model Webhook {
+  id              String    @id @default(cuid())
+  name            String
+  url             String
+  format          String    @default("json")
+  events          String[]
+  secret          String
+  isActive        Boolean   @default(true)
+  lastStatus      Int?
+  lastError       String?
+  lastDeliveredAt DateTime?
+  createdById     String
+  createdAt       DateTime  @default(now())
 }

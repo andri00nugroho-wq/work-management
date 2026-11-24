@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { authorize, fail, readJson, oneOf, ADMIN_ROLES, ROLES } from "@/lib/api";
+import { authorize, fail, readJson, oneOf, taskScope, ADMIN_ROLES, ROLES } from "@/lib/api";
 
 const PUBLIC_USER = {
   id: true,
   name: true,
   email: true,
   role: true,
-  division: { select: { name: true } },
+  division: { select: { id: true, name: true } },
+  weeklyCapacityHours: true,
 } as const;
 
 export async function GET() {
@@ -16,8 +17,19 @@ export async function GET() {
   if ("response" in auth) return auth.response;
 
   try {
+    const guestScope =
+      auth.user.role === "GUEST"
+        ? {
+            OR: [
+              { id: auth.user.id },
+              { assignedTasks: { some: taskScope(auth.user) } },
+              { createdTasks: { some: taskScope(auth.user) } },
+              { taskAssignments: { some: { task: taskScope(auth.user) } } },
+            ],
+          }
+        : {};
     const users = await prisma.user.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...guestScope },
       orderBy: { name: "asc" },
       select: PUBLIC_USER,
     });

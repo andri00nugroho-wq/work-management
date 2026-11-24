@@ -118,7 +118,7 @@ async function main() {
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash },
+    data: { passwordHash, passwordChangedAt: new Date() },
   });
 
   console.log("\nPassword Super Admin berhasil direset.");
