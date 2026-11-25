@@ -5,21 +5,37 @@ import { errorText } from "../lib/format";
 import { pickList, request } from "../lib/http";
 import type {
   DashboardData,
+  Division,
+  Label,
   Member,
   MenuName,
   Project,
+  SavedView,
   Task,
+  TaskFilters,
   TaskStatus,
   UserRole,
+  WipLimits,
 } from "../types";
+import type { BulkAction } from "../tasks/task-table";
 
 export type TaskInput = {
   title: string;
   description: string;
   priority: string;
+  startDate: string;
   dueDate: string;
   projectId: string;
   assigneeId: string;
+  labelIds: string[];
+  recurrence: string;
+};
+
+export type MemberPatch = {
+  divisionId?: string | null;
+  password?: string;
+  isActive?: false;
+  weeklyCapacityHours?: number;
 };
 
 export type ProjectInput = { name: string; description: string };
@@ -29,6 +45,7 @@ export type MemberInput = {
   email: string;
   password: string;
   role: UserRole;
+  divisionId: string;
 };
 
 type WorkspaceSnapshot = {
@@ -36,6 +53,8 @@ type WorkspaceSnapshot = {
   tasks: Task[];
   projects: Project[] | null;
   members: Member[] | null;
+  labels: Label[];
+  divisions: Division[] | null;
 };
 
 const fetchMembers = () =>
@@ -48,17 +67,32 @@ const fetchProjects = () =>
     (result) => pickList<Project>(result, "projects")
   );
 
+const fetchLabels = () =>
+  request<unknown>("/api/labels", { method: "GET" }, "Gagal mengambil label.").then((result) =>
+    pickList<Label>(result, "labels")
+  );
+
+const fetchDivisions = () =>
+  request<unknown>("/api/divisions", { method: "GET" }, "Gagal mengambil divisi.").then((result) =>
+    pickList<Division>(result, "divisions")
+  );
+
+const MENUS_WITH_MEMBERS: MenuName[] = ["Tim", "Pengaturan"];
+const MENUS_WITH_DIVISIONS: MenuName[] = ["Tim", "Pengaturan"];
+
 /** Data dashboard + data tambahan yang dibutuhkan menu aktif. */
 async function fetchWorkspace(menu: MenuName): Promise<WorkspaceSnapshot> {
-  const [dashboard, tasks, projects, members] = await Promise.all([
+  const [dashboard, tasks, projects, members, labels, divisions] = await Promise.all([
     request<DashboardData>("/api/dashboard", { method: "GET" }, "Gagal mengambil data dashboard."),
     request<unknown>("/api/tasks", { method: "GET" }, "Gagal mengambil data tugas.").then(
       (result) => pickList<Task>(result, "tasks")
     ),
-    menu === "Proyek" || menu === "Laporan" ? fetchProjects() : null,
-    menu === "Tim" ? fetchMembers() : null,
+    menu === "Proyek" || menu === "Laporan" || menu === "Pengaturan" ? fetchProjects() : null,
+    MENUS_WITH_MEMBERS.includes(menu) ? fetchMembers() : null,
+    fetchLabels(),
+    MENUS_WITH_DIVISIONS.includes(menu) ? fetchDivisions() : null,
   ]);
-  return { dashboard, tasks, projects, members };
+  return { dashboard, tasks, projects, members, labels, divisions };
 }
 
 function patchList(list: Task[], taskId: string, patch: Partial<Task>) {
@@ -78,6 +112,10 @@ export function useWorkspace(activeMenu: MenuName) {
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [labels, setLabels] = useState<Label[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [views, setViews] = useState<SavedView[]>([]);
+  const [wipLimits, setWipLimits] = useState<WipLimits>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -88,6 +126,18 @@ export function useWorkspace(activeMenu: MenuName) {
     setAllTasks(snapshot.tasks);
     if (snapshot.projects) setProjects(snapshot.projects);
     if (snapshot.members) setMembers(snapshot.members);
+    setLabels(snapshot.labels);
+    if (snapshot.divisions) setDivisions(snapshot.divisions);
+  }, []);
+
+  // Tampilan tersimpan & batas WIP cukup dimuat sekali.
+  useEffect(() => {
+    request<unknown>("/api/views", { method: "GET" }, "Gagal mengambil tampilan.")
+      .then((result) => setViews(pickList<SavedView>(result, "views")))
+      .catch(() => {});
+    request<{ wipLimits: WipLimits }>("/api/settings/board", { method: "GET" }, "Gagal mengambil batas WIP.")
+      .then((result) => setWipLimits(result.wipLimits ?? {}))
+      .catch(() => {});
   }, []);
 
   // Muat ulang setiap kali menu berganti; hasil yang sudah basi diabaikan.
@@ -142,6 +192,10 @@ export function useWorkspace(activeMenu: MenuName) {
     if (projects.length === 0) setProjects(await fetchProjects());
   }, [projects.length]);
 
+  const ensureDivisions = useCallback(async () => {
+    if (divisions.length === 0) setDivisions(await fetchDivisions());
+  }, [divisions.length]);
+
   /** Terapkan perubahan satu tugas ke semua daftar yang memuatnya. */
   const patchTask = useCallback((taskId: string, patch: Partial<Task>) => {
     setAllTasks((list) => patchList(list, taskId, patch));
@@ -181,9 +235,12 @@ export function useWorkspace(activeMenu: MenuName) {
               title: input.title.trim(),
               description: input.description.trim() || null,
               priority: input.priority,
+              startDate: input.startDate || null,
               dueDate: input.dueDate || null,
               projectId: input.projectId || null,
               assigneeId: input.assigneeId || undefined,
+              labelIds: input.labelIds,
+              recurrence: input.recurrence,
             }),
           },
           "Tugas gagal disimpan."
@@ -219,18 +276,80 @@ export function useWorkspace(activeMenu: MenuName) {
     }
   }
 
-  async function deleteTask(task: Task) {
-    if (
-      !window.confirm(
-        `Hapus tugas "${task.title}"? Tugas, tautan, dan riwayat kendalanya akan dihapus permanen.`
+  /** Ubah sebagian field satu tugas (mis. geser jadwal dari kalender). */
+  function patchTaskFields(task: Task, body: Record<string, unknown>, success: string) {
+    return mutate(
+      () =>
+        request(`/api/tasks/${task.id}`, { method: "PATCH", body: JSON.stringify(body) }, "Tugas gagal diperbarui."),
+      success,
+      "Gagal memperbarui tugas."
+    );
+  }
+
+  /**
+   * Aksi massal: satu permintaan per tugas agar semua aturan server (dependensi,
+   * izin, riwayat) tetap berlaku. Melaporkan jumlah berhasil & gagal.
+   */
+  async function bulkUpdate(tasks: Task[], action: BulkAction) {
+    setSaving(true);
+    setError("");
+    setNotice("");
+    const results = await Promise.allSettled(
+      tasks.map((task) =>
+        action.kind === "delete"
+          ? request(`/api/tasks/${task.id}`, { method: "DELETE" }, `"${task.title}" gagal dihapus.`)
+          : request(
+              `/api/tasks/${task.id}`,
+              {
+                method: "PATCH",
+                body: JSON.stringify(
+                  action.kind === "status"
+                    ? { status: action.value }
+                    : action.kind === "priority"
+                      ? { priority: action.value }
+                      : { assigneeId: action.value }
+                ),
+              },
+              `"${task.title}" gagal diperbarui.`
+            )
       )
-    ) {
+    );
+    const failed = results
+      .map((result, index) => (result.status === "rejected" ? `${tasks[index].title}: ${errorText(result.reason, "gagal")}` : null))
+      .filter((item): item is string => item !== null);
+    const ok = tasks.length - failed.length;
+    if (ok) setNotice(`${ok} tugas berhasil ${action.kind === "delete" ? "dihapus" : "diperbarui"}.`);
+    if (failed.length) setError(`${failed.length} gagal — ${failed.slice(0, 3).join("; ")}${failed.length > 3 ? "; ..." : ""}`);
+    setSaving(false);
+    await refresh(true);
+  }
+
+  async function saveWipLimits(limits: WipLimits) {
+    try {
+      const result = await request<{ wipLimits: WipLimits }>(
+        "/api/settings/board",
+        { method: "PUT", body: JSON.stringify(limits) },
+        "Batas WIP gagal disimpan."
+      );
+      setWipLimits(result.wipLimits);
+      setNotice("Batas WIP Kanban disimpan.");
+      return true;
+    } catch (err) {
+      setError(errorText(err, "Gagal menyimpan batas WIP."));
       return false;
     }
+  }
+
+  function saveProjectAsTemplate(project: Project, name: string) {
     return mutate(
-      () => request(`/api/tasks/${task.id}`, { method: "DELETE" }, "Tugas gagal dihapus."),
-      "Tugas berhasil dihapus.",
-      "Gagal menghapus tugas."
+      () =>
+        request(
+          "/api/templates",
+          { method: "POST", body: JSON.stringify({ name, projectId: project.id }) },
+          "Templat gagal disimpan."
+        ),
+      `Templat "${name}" disimpan dari proyek "${project.name}".`,
+      "Gagal menyimpan templat."
     );
   }
 
@@ -274,6 +393,7 @@ export function useWorkspace(activeMenu: MenuName) {
               email: input.email.trim(),
               password: input.password,
               role: input.role,
+              divisionId: input.divisionId || null,
             }),
           },
           "Anggota gagal disimpan."
@@ -297,24 +417,99 @@ export function useWorkspace(activeMenu: MenuName) {
     );
   }
 
-  async function deleteMember(member: Member) {
-    if (
-      !window.confirm(
-        `Hapus "${member.name}" dari tim? Akun akan dinonaktifkan dan tidak bisa login lagi.`
-      )
-    ) {
-      return;
-    }
-    await mutate(
+  async function updateMember(member: Member, patch: MemberPatch, success: string) {
+    return mutate(
       () =>
         request(
           `/api/users/${member.id}`,
-          { method: "DELETE" },
-          "Anggota gagal dihapus."
+          { method: "PATCH", body: JSON.stringify(patch) },
+          "Data anggota gagal diperbarui."
         ),
-      "Anggota berhasil dihapus.",
-      "Gagal menghapus anggota."
+      success,
+      "Gagal memperbarui anggota."
     );
+  }
+
+  /* ---------- Label & divisi (menu Pengaturan) ---------- */
+
+  function saveLabel(input: { name: string; color: string }, labelId?: string) {
+    return mutate(
+      () =>
+        request(
+          labelId ? `/api/labels/${labelId}` : "/api/labels",
+          { method: labelId ? "PATCH" : "POST", body: JSON.stringify(input) },
+          "Label gagal disimpan."
+        ),
+      labelId ? "Label diperbarui." : "Label dibuat.",
+      "Gagal menyimpan label."
+    );
+  }
+
+  async function deleteLabel(label: Label) {
+    if (!window.confirm(`Hapus label "${label.name}"? Label akan dilepas dari semua tugas.`)) return;
+    await mutate(
+      () => request(`/api/labels/${label.id}`, { method: "DELETE" }, "Label gagal dihapus."),
+      "Label dihapus.",
+      "Gagal menghapus label."
+    );
+  }
+
+  function saveDivision(
+    input: { name?: string; description?: string; supervisorId?: string | null },
+    divisionId?: string
+  ) {
+    return mutate(
+      () =>
+        request(
+          divisionId ? `/api/divisions/${divisionId}` : "/api/divisions",
+          { method: divisionId ? "PATCH" : "POST", body: JSON.stringify(input) },
+          "Divisi gagal disimpan."
+        ),
+      divisionId ? "Divisi diperbarui." : "Divisi dibuat.",
+      "Gagal menyimpan divisi."
+    );
+  }
+
+  async function deleteDivision(division: Division) {
+    if (
+      !window.confirm(
+        `Nonaktifkan divisi "${division.name}"? ${division._count.users} anggota akan dilepas dari divisi ini.`
+      )
+    )
+      return;
+    await mutate(
+      () => request(`/api/divisions/${division.id}`, { method: "DELETE" }, "Divisi gagal dihapus."),
+      "Divisi dinonaktifkan.",
+      "Gagal menghapus divisi."
+    );
+  }
+
+  /* ---------- Tampilan tersimpan ---------- */
+
+  async function saveView(name: string, filters: Partial<TaskFilters>) {
+    try {
+      const result = await request<{ view: SavedView }>(
+        "/api/views",
+        { method: "POST", body: JSON.stringify({ name, filters }) },
+        "Tampilan gagal disimpan."
+      );
+      setViews((list) => [...list, result.view]);
+      setNotice(`Tampilan "${name}" disimpan.`);
+      return result.view;
+    } catch (err) {
+      setError(errorText(err, "Gagal menyimpan tampilan."));
+      return null;
+    }
+  }
+
+  async function deleteView(view: SavedView) {
+    try {
+      await request(`/api/views/${view.id}`, { method: "DELETE" }, "Tampilan gagal dihapus.");
+      setViews((list) => list.filter((item) => item.id !== view.id));
+      setNotice(`Tampilan "${view.name}" dihapus.`);
+    } catch (err) {
+      setError(errorText(err, "Gagal menghapus tampilan."));
+    }
   }
 
   return {
@@ -322,6 +517,10 @@ export function useWorkspace(activeMenu: MenuName) {
     allTasks,
     projects,
     members,
+    labels,
+    divisions,
+    views,
+    wipLimits,
     loading,
     saving,
     error,
@@ -332,15 +531,25 @@ export function useWorkspace(activeMenu: MenuName) {
     resetForMenu,
     ensureMembers,
     ensureProjects,
+    ensureDivisions,
     patchTask,
     createTask,
     updateTaskStatus,
-    deleteTask,
+    patchTaskFields,
+    bulkUpdate,
+    saveWipLimits,
     createProject,
+    saveProjectAsTemplate,
     deleteProject,
     createMember,
     updateMemberRole,
-    deleteMember,
+    updateMember,
+    saveLabel,
+    deleteLabel,
+    saveDivision,
+    deleteDivision,
+    saveView,
+    deleteView,
   };
 }
 

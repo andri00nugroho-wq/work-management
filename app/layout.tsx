@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { THEMES, THEME_STORAGE_KEY } from "@/lib/theme";
 import StyledJsxRegistry from "./registry";
+import "@fortawesome/fontawesome-svg-core/styles.css";
 import "./globals.css";
 
 export const metadata: Metadata = {

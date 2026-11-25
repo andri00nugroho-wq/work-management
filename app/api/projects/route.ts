@@ -1,21 +1,26 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authorize, fail, readJson, MANAGE_ROLES } from "@/lib/api";
+import { authorize, fail, readJson, taskScope, MANAGE_ROLES } from "@/lib/api";
 
 export async function GET() {
   const auth = await authorize();
   if ("response" in auth) return auth.response;
 
   try {
+    const guestScope =
+      auth.user.role === "GUEST" ? { tasks: { some: taskScope(auth.user) } } : {};
     const projects = await prisma.project.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...guestScope },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
         name: true,
         description: true,
         _count: { select: { tasks: true } },
-        tasks: { select: { id: true, status: true } },
+        tasks: {
+          where: auth.user.role === "GUEST" ? taskScope(auth.user) : undefined,
+          select: { id: true, status: true },
+        },
       },
     });
     return NextResponse.json({ projects });

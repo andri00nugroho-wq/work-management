@@ -192,6 +192,16 @@ export function useChat(userId: string, activeMenu: MenuName) {
 
       source.addEventListener("conversation", () => void loadConversations(true));
 
+      // Pemberitahuan memakai koneksi SSE yang sama; diteruskan ke hook notifikasi.
+      source.addEventListener("notification", (event) => {
+        try {
+          const detail = JSON.parse((event as MessageEvent).data);
+          window.dispatchEvent(new CustomEvent("rei:notification", { detail }));
+        } catch {
+          // Abaikan payload yang tidak valid.
+        }
+      });
+
       source.addEventListener("presence", (event) => {
         try {
           const payload = JSON.parse((event as MessageEvent).data) as {

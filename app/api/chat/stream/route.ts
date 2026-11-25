@@ -62,6 +62,8 @@ export async function GET(request: Request) {
         if (!event.memberIds.includes(userId)) return;
         if (event.type === "message") {
           send("message", event.message);
+        } else if (event.type === "notification") {
+          send("notification", event.notification);
         } else {
           send("conversation", { conversationId: event.conversationId });
         }

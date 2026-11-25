@@ -68,7 +68,7 @@ export const dashboardStyles = css.global`
   .topbar-actions { display: flex; align-items: center; gap: 18px; }
   .system-status { display: flex; align-items: center; gap: 7px; color: var(--rei-muted); font-size: 10px; }
   .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #22a06b; box-shadow: 0 0 0 3px #22a06b18; animation: pulse-dot 2.4s ease-in-out infinite; }
-  .icon-button { border: 0; background: transparent; color: var(--rei-muted); font-size: 22px; transition: transform .3s cubic-bezier(.2,.8,.2,1), color .2s ease; }
+  .icon-button { border: 0; background: transparent; color: var(--rei-muted); font-size: 17px; transition: transform .3s cubic-bezier(.2,.8,.2,1), color .2s ease; }
   .icon-button:hover { color: var(--rei-accent); transform: rotate(90deg); }
   .topbar-avatar { border: 0; width: 31px; height: 31px; font-size: 11px; transition: transform .2s ease, box-shadow .2s ease; }
   .topbar-avatar:hover { transform: translateY(-1px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rei-accent) 20%, transparent); }
@@ -179,7 +179,7 @@ export const dashboardStyles = css.global`
   .task-tools { gap: 8px; }
   .search-box { display: flex; align-items: center; gap: 8px; height: 35px; padding: 0 10px; border: 1px solid var(--rei-border-strong); border-radius: 8px; color: var(--rei-soft); transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease; }
   .search-box:focus-within { border-color: var(--rei-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--rei-accent) 14%, transparent); }
-  .search-box span { font-size: 18px; }
+  .search-box span { font-size: 14px; color: var(--rei-muted); }
   .search-box input { width: 120px; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--rei-text); font-size: 10px; }
   .search-box input::placeholder { color: var(--rei-soft); }
   .filter-select { height: 35px; max-width: 145px; padding: 0 8px; border: 1px solid var(--rei-border-strong); border-radius: 8px; background: var(--rei-surface); color: var(--rei-muted); font-size: 10px; transition: border-color .2s ease, background-color .2s ease, color .2s ease; }

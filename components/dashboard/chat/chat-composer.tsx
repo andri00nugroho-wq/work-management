@@ -1,5 +1,7 @@
 "use client";
 
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { useRef, useState } from "react";
 import { CHAT_MAX_FILES, CHAT_MAX_FILE_SIZE } from "../constants";
 import { errorText, formatFileSize } from "../lib/format";
@@ -76,7 +78,7 @@ export default function ChatComposer({
                 aria-label={`Hapus ${file.name}`}
                 onClick={() => setFiles((prev) => prev.filter((_, i) => i !== index))}
               >
-                ×
+                <Icon icon={faXmark} />
               </button>
             </span>
           ))}

@@ -1,5 +1,7 @@
 "use client";
 
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { useMemo, useState } from "react";
 import { ROLE_LABEL } from "../constants";
 import { errorText, initials } from "../lib/format";
@@ -83,7 +85,7 @@ export default function TaskTagsSection({
     <div className="task-tags-section">
       <div className="task-tags-heading">
         <div>
-          <h3>Tag rekan</h3>
+          <h3>Pengamat (tag rekan)</h3>
           <p>
             Rekan yang di-tag otomatis bisa melihat tugas ini beserta perubahan status dan
             riwayatnya.
@@ -109,7 +111,7 @@ export default function TaskTagsSection({
                   disabled={busy}
                   aria-label={`Lepas tanda ${tag.user.name}`}
                 >
-                  ×
+                  <Icon icon={faXmark} />
                 </button>
               )}
             </li>

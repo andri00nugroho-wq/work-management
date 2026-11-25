@@ -1,5 +1,7 @@
 "use client";
 
+import { faArrowRight } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { percent } from "../lib/format";
 import { countDone, tasksOfProject } from "../lib/tasks";
 import type { Project, Task } from "../types";
@@ -10,15 +12,19 @@ export default function ProjectsView({
   allTasks,
   loading,
   canDelete,
+  canTemplate,
   onOpenBoard,
   onDelete,
+  onSaveTemplate,
 }: {
   projects: Project[];
   allTasks: Task[];
   loading: boolean;
   canDelete: boolean;
+  canTemplate: boolean;
   onOpenBoard: (project: Project) => void;
   onDelete: (project: Project) => void;
+  onSaveTemplate: (project: Project) => void;
 }) {
   return (
     <section className="project-grid">
@@ -48,8 +54,13 @@ export default function ProjectsView({
 
             <div className="project-card-actions">
               <button className="text-button" onClick={() => onOpenBoard(project)}>
-                Buka di board →
+                Buka di board <Icon icon={faArrowRight} />
               </button>
+              {canTemplate && list.length > 0 && (
+                <button className="text-button" onClick={() => onSaveTemplate(project)}>
+                  Simpan sebagai templat
+                </button>
+              )}
               {canDelete && (
                 <button className="text-button danger-text" onClick={() => onDelete(project)}>
                   Hapus

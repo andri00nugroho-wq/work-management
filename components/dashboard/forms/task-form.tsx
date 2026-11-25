@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { PRIORITY_LABEL, ROLE_LABEL } from "../constants";
+import { PRIORITY_LABEL, RECURRENCE_LABEL, ROLE_LABEL } from "../constants";
 import type { TaskInput } from "../hooks/use-workspace";
-import type { DashboardUser, Member, Project, TaskPriority } from "../types";
+import type { DashboardUser, Label, Member, Project, TaskPriority } from "../types";
+import { LabelPicker } from "../ui";
 import FormShell from "./form-shell";
 
 const PRIORITIES = Object.keys(PRIORITY_LABEL) as TaskPriority[];
@@ -12,6 +13,7 @@ export default function TaskForm({
   user,
   members,
   projects,
+  labels,
   saving,
   onSubmit,
   onInvalid,
@@ -20,6 +22,7 @@ export default function TaskForm({
   user: DashboardUser;
   members: Member[];
   projects: Project[];
+  labels: Label[];
   saving: boolean;
   onSubmit: (input: TaskInput) => Promise<boolean>;
   onInvalid: (message: string) => void;
@@ -29,9 +32,12 @@ export default function TaskForm({
     title: "",
     description: "",
     priority: "MEDIUM",
+    startDate: "",
     dueDate: "",
     projectId: "",
     assigneeId: user.id,
+    labelIds: [],
+    recurrence: "NONE",
   });
 
   const set = (field: keyof TaskInput) => (
@@ -41,6 +47,10 @@ export default function TaskForm({
   function submit() {
     if (!form.title.trim()) {
       onInvalid("Nama tugas wajib diisi.");
+      return;
+    }
+    if (form.startDate && form.dueDate && form.startDate > form.dueDate) {
+      onInvalid("Tanggal mulai tidak boleh setelah tenggat.");
       return;
     }
     void onSubmit(form);
@@ -78,8 +88,13 @@ export default function TaskForm({
       </label>
 
       <label>
+        Tanggal mulai
+        <input type="date" value={form.startDate} max={form.dueDate || undefined} onChange={set("startDate")} />
+      </label>
+
+      <label>
         Tenggat waktu
-        <input type="date" value={form.dueDate} onChange={set("dueDate")} />
+        <input type="date" value={form.dueDate} min={form.startDate || undefined} onChange={set("dueDate")} />
       </label>
 
       <label>
@@ -98,6 +113,17 @@ export default function TaskForm({
       </label>
 
       <label>
+        Pengulangan
+        <select value={form.recurrence} onChange={set("recurrence")}>
+          {Object.entries(RECURRENCE_LABEL).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label>
         Proyek
         <select value={form.projectId} onChange={set("projectId")}>
           <option value="">Tanpa proyek</option>
@@ -108,6 +134,12 @@ export default function TaskForm({
           ))}
         </select>
       </label>
+
+      <LabelPicker
+        labels={labels}
+        value={form.labelIds}
+        onChange={(labelIds) => setForm({ ...form, labelIds })}
+      />
 
       <label className="description-field">
         Deskripsi

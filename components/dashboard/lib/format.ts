@@ -58,3 +58,23 @@ export function percent(part: number, total: number) {
 export function errorText(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
 }
+
+/** Nilai <input type="date"> dari tanggal ISO (tanggal disimpan sebagai tengah malam UTC). */
+export function toDateInput(value?: string | null) {
+  return value ? value.slice(0, 10) : "";
+}
+
+/** "3 menit lalu", "2 jam lalu", atau tanggal untuk yang lebih lama. */
+export function formatRelative(value: string) {
+  const date = new Date(value);
+  const diff = Date.now() - date.getTime();
+  if (Number.isNaN(diff)) return "";
+  const minutes = Math.round(diff / 60000);
+  if (minutes < 1) return "baru saja";
+  if (minutes < 60) return `${minutes} menit lalu`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} jam lalu`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days} hari lalu`;
+  return formatDate(value);
+}

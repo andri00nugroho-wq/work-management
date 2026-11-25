@@ -1,5 +1,7 @@
 "use client";
 
+import { faCheck, faChevronDown } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { useEffect, useRef, useState } from "react";
 import { THEMES, applyTheme, type Theme } from "@/lib/theme";
 import { useTheme } from "@/lib/use-theme";
@@ -49,11 +51,11 @@ export default function ThemeSwitcher() {
         onClick={() => setOpen((value) => !value)}
       >
         <span className="theme-toggle-icon" aria-hidden="true">
-          {current?.icon}
+          {current && <Icon icon={current.icon} />}
         </span>
         <span>{current?.label}</span>
         <span className={`theme-caret ${open ? "open" : ""}`} aria-hidden="true">
-          ⌄
+          <Icon icon={faChevronDown} />
         </span>
       </button>
 
@@ -79,7 +81,7 @@ export default function ThemeSwitcher() {
                 <small>{item.description}</small>
               </span>
               <span className="theme-check" aria-hidden="true">
-                {theme === item.id ? "✓" : ""}
+                {theme === item.id && <Icon icon={faCheck} />}
               </span>
             </button>
           ))}

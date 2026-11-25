@@ -1,5 +1,7 @@
 "use client";
 
+import { faCheck } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { useState } from "react";
 import { ROLE_LABEL } from "../constants";
 import { errorText, initials } from "../lib/format";
@@ -86,7 +88,7 @@ export default function ChatCreateModal({
                   </small>
                 </span>
                 <span className="chat-member-check" aria-hidden="true">
-                  ✓
+                  <Icon icon={faCheck} />
                 </span>
               </label>
             );

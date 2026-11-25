@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { authorize, fail, readJson, taskScope, MANAGE_ROLES } from "@/lib/api";
+import { authorize, fail, readJson } from "@/lib/api";
+import { canManageTask, loadTaskForUser as loadTask } from "@/lib/task-access";
+import { notify } from "@/lib/notify";
 
 type Ctx = { params: Promise<{ id: string }> };
-type ScopeUser = Parameters<typeof taskScope>[0];
 
 const TAG_SELECT = {
   id: true,
@@ -12,30 +13,6 @@ const TAG_SELECT = {
   taggedBy: { select: { name: true } },
 } as const;
 
-async function loadTask(taskId: string, user: ScopeUser) {
-  return prisma.task.findFirst({
-    where: { AND: [{ id: taskId }, taskScope(user)] },
-    select: {
-      id: true,
-      title: true,
-      assigneeId: true,
-      creatorId: true,
-      assignments: { select: { userId: true } },
-    },
-  });
-}
-
-function canManageTask(
-  task: NonNullable<Awaited<ReturnType<typeof loadTask>>>,
-  user: ScopeUser
-) {
-  return (
-    MANAGE_ROLES.includes(user.role) ||
-    task.assigneeId === user.id ||
-    task.creatorId === user.id ||
-    task.assignments.some((assignment) => assignment.userId === user.id)
-  );
-}
 
 function listTags(taskId: string) {
   return prisma.taskTag.findMany({
@@ -87,6 +64,13 @@ export async function POST(request: Request, { params }: Ctx) {
           },
         }),
       ]);
+      await notify([target.id], {
+        type: "TAGGED",
+        title: `Anda ditandai pada: ${task.title}`,
+        body: `${user.name} menandai Anda untuk mengikuti tugas ini.`,
+        taskId: id,
+        actorId: user.id,
+      });
     }
 
     return NextResponse.json({

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Prisma, TaskPriority, TaskStatus, UserRole } from "@/app/generated/prisma";
+import { Prisma, TaskPriority, TaskStatus, UserRole } from "@/app/generated/prisma/client";
 import { getCurrentUser, type SessionUser } from "@/lib/current-user";
 
 export const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN];
@@ -9,6 +9,9 @@ export const MANAGE_ROLES: UserRole[] = [
   UserRole.SPV,
   UserRole.MANAGER,
 ];
+
+/** Semua peran internal (bukan Tamu/Klien eksternal). */
+export const STAFF_ROLES: UserRole[] = Object.values(UserRole).filter((role) => role !== UserRole.GUEST);
 
 export const STATUSES = Object.values(TaskStatus);
 export const PRIORITIES = Object.values(TaskPriority);
@@ -67,6 +70,25 @@ export const TASK_INCLUDE = {
   assignee: { select: { id: true, name: true } },
   creator: { select: { id: true, name: true } },
   links: { orderBy: { createdAt: "asc" as const } },
+  labels: { select: { label: { select: { id: true, name: true, color: true } } } },
+  assignments: {
+    orderBy: { assignedAt: "asc" as const },
+    select: { status: true, user: { select: { id: true, name: true } } },
+  },
+  subtasks: {
+    orderBy: [{ position: "asc" as const }, { createdAt: "asc" as const }],
+    select: { id: true, title: true, done: true, position: true },
+  },
+  dependsOn: {
+    orderBy: { createdAt: "asc" as const },
+    select: { dependsOn: { select: { id: true, title: true, status: true } } },
+  },
+  blocking: {
+    orderBy: { createdAt: "asc" as const },
+    select: { task: { select: { id: true, title: true, status: true } } },
+  },
+  timeEntries: { select: { minutes: true, startedAt: true, endedAt: true } },
+  _count: { select: { comments: true, attachments: true } },
   tags: {
     orderBy: { createdAt: "asc" as const },
     select: {
@@ -104,4 +126,21 @@ export async function readJson(request: Request): Promise<Record<string, unknown
   } catch {
     return {};
   }
+}
+
+/** Validasi tanggal mulai <= tenggat. Mengembalikan pesan galat atau null. */
+export function checkDateRange(start: Date | null | undefined, due: Date | null | undefined) {
+  if (start && due && start.getTime() > due.getTime()) {
+    return "Tanggal mulai tidak boleh setelah tenggat.";
+  }
+  return null;
+}
+
+/** Ambil daftar id unik (string) dari body; undefined bila field tidak dikirim. */
+export function parseIdList(value: unknown, max = 50): string[] | undefined | "invalid" {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > max) return "invalid";
+  const ids = value.filter((item): item is string => typeof item === "string" && item.length > 0);
+  if (ids.length !== value.length) return "invalid";
+  return Array.from(new Set(ids));
 }

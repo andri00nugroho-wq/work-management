@@ -1,10 +1,9 @@
 import "dotenv/config";
 import { hash } from "bcryptjs";
-import { PrismaClient, UserRole } from "../app/generated/prisma/client";
+import { UserRole } from "../app/generated/prisma/client";
+import { prisma } from "../lib/prisma";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-
-const prisma = new PrismaClient();
 
 const rl = createInterface({ input, output });
 

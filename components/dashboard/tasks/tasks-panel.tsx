@@ -1,10 +1,16 @@
 "use client";
 
+import { faFilter, faFloppyDisk, faMagnifyingGlass, faTrashCan } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import { useState } from "react";
-import { PRIORITY_LABEL, STATUSES, STATUS_LABEL } from "../constants";
-import { formatDate } from "../lib/format";
-import type { MenuName, Task, TaskStatus } from "../types";
-import { EmptyRow, PriorityBadge, StatusSelect, TableFooter } from "../ui";
+import { PRIORITY_LABEL } from "../constants";
+import { EMPTY_FILTERS, activeFilterCount } from "../lib/tasks";
+import type { Label, Member, MenuName, SavedView, Task, TaskFilters, TaskStatus, WipLimits } from "../types";
+import { TableFooter } from "../ui";
+import CalendarView from "../views/calendar-view";
+import TimelineView from "../views/timeline-view";
+import KanbanBoard from "./kanban-board";
+import TaskTable, { type BulkAction } from "./task-table";
 
 type TaskHandlers = {
   onOpenTask: (task: Task) => void;
@@ -16,25 +22,62 @@ export default function TasksPanel({
   tasks,
   loading,
   userId,
-  search,
-  statusFilter,
-  onSearchChange,
-  onStatusFilterChange,
+  filters,
+  members,
+  labels,
+  views,
+  canManage,
+  readOnly = false,
+  wipLimits,
+  onFiltersChange,
+  onSaveView,
+  onDeleteView,
   onRefresh,
   onOpenTask,
   onStatusChange,
+  onReschedule,
+  onBulk,
 }: TaskHandlers & {
   menu: MenuName;
   tasks: Task[];
   loading: boolean;
   userId: string;
-  search: string;
-  statusFilter: string;
-  onSearchChange: (value: string) => void;
-  onStatusFilterChange: (value: string) => void;
+  filters: TaskFilters;
+  members: Member[];
+  labels: Label[];
+  views: SavedView[];
+  canManage: boolean;
+  readOnly?: boolean;
+  wipLimits: WipLimits;
+  onFiltersChange: (filters: TaskFilters) => void;
+  onSaveView: (name: string, filters: TaskFilters) => void;
+  onDeleteView: (view: SavedView) => void;
   onRefresh: () => void;
+  onReschedule: (task: Task, dates: { startDate: string | null; dueDate: string }) => void;
+  onBulk: (tasks: Task[], action: BulkAction) => Promise<void>;
 }) {
   const handlers = { onOpenTask, onStatusChange };
+  const [showFilters, setShowFilters] = useState(false);
+  const [activeViewId, setActiveViewId] = useState("");
+  const filterCount = activeFilterCount(filters);
+  const set = <K extends keyof TaskFilters>(key: K, value: TaskFilters[K]) => {
+    setActiveViewId("");
+    onFiltersChange({ ...filters, [key]: value });
+  };
+
+  function applyView(viewId: string) {
+    setActiveViewId(viewId);
+    const view = views.find((item) => item.id === viewId);
+    onFiltersChange({ ...EMPTY_FILTERS, ...(view?.filters ?? {}) });
+    if (view) setShowFilters(true);
+  }
+
+  function saveCurrentView() {
+    const name = window.prompt("Nama tampilan ini?", "Tampilan saya")?.trim();
+    if (name) onSaveView(name, filters);
+  }
+
+  const activeView = views.find((view) => view.id === activeViewId);
 
   return (
     <section className="panel tasks-panel">
@@ -46,19 +89,19 @@ export default function TasksPanel({
 
         <div className="task-tools">
           <div className="search-box">
-            <span>⌕</span>
+            <span><Icon icon={faMagnifyingGlass} /></span>
             <input
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Cari tugas..."
+              value={filters.search}
+              onChange={(event) => set("search", event.target.value)}
+              placeholder="Cari tugas atau label..."
               aria-label="Cari tugas"
             />
           </div>
 
           <select
             className="filter-select"
-            value={statusFilter}
-            onChange={(event) => onStatusFilterChange(event.target.value)}
+            value={filters.status}
+            onChange={(event) => set("status", event.target.value)}
             aria-label="Filter status"
           >
             <option value="ALL">Semua status</option>
@@ -67,13 +110,140 @@ export default function TasksPanel({
             <option value="REVIEW">Review</option>
             <option value="DONE">Selesai</option>
           </select>
+
+          <button
+            type="button"
+            className={`secondary-button filter-toggle ${showFilters || filterCount > 1 ? "active" : ""}`}
+            onClick={() => setShowFilters((value) => !value)}
+            aria-expanded={showFilters}
+          >
+            <Icon icon={faFilter} /> Filter{filterCount ? ` (${filterCount})` : ""}
+          </button>
+
+          <select
+            className="filter-select"
+            value={activeViewId}
+            onChange={(event) => applyView(event.target.value)}
+            aria-label="Tampilan tersimpan"
+          >
+            <option value="">{views.length ? "Tampilan tersimpan..." : "Belum ada tampilan"}</option>
+            {views.map((view) => (
+              <option key={view.id} value={view.id}>
+                {view.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
+      {showFilters && (
+        <div className="filter-bar">
+          <label>
+            Prioritas
+            <select value={filters.priority} onChange={(event) => set("priority", event.target.value)}>
+              <option value="ALL">Semua</option>
+              {Object.entries(PRIORITY_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Penanggung jawab
+            <select value={filters.assigneeId} onChange={(event) => set("assigneeId", event.target.value)}>
+              <option value="">Semua orang</option>
+              <option value={userId}>Saya</option>
+              {members
+                .filter((member) => member.id !== userId)
+                .map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            Label
+            <select value={filters.labelId} onChange={(event) => set("labelId", event.target.value)}>
+              <option value="">Semua label</option>
+              {labels.map((label) => (
+                <option key={label.id} value={label.id}>
+                  {label.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Tenggat dari
+            <input
+              type="date"
+              value={filters.dueFrom}
+              max={filters.dueTo || undefined}
+              onChange={(event) => set("dueFrom", event.target.value)}
+            />
+          </label>
+          <label>
+            sampai
+            <input
+              type="date"
+              value={filters.dueTo}
+              min={filters.dueFrom || undefined}
+              onChange={(event) => set("dueTo", event.target.value)}
+            />
+          </label>
+          <div className="filter-bar-actions">
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => {
+                setActiveViewId("");
+                onFiltersChange(EMPTY_FILTERS);
+              }}
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={saveCurrentView}
+              disabled={filterCount === 0 && !filters.search.trim()}
+            >
+              <Icon icon={faFloppyDisk} /> Simpan tampilan
+            </button>
+            {activeView && (
+              <button
+                type="button"
+                className="secondary-button danger"
+                onClick={() => {
+                  onDeleteView(activeView);
+                  setActiveViewId("");
+                }}
+              >
+                <Icon icon={faTrashCan} /> Hapus &quot;{activeView.name}&quot;
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {menu === "Board Kanban" ? (
-        <KanbanBoard tasks={tasks} loading={loading} {...handlers} />
+        <KanbanBoard tasks={tasks} loading={loading} wipLimits={wipLimits} readOnly={readOnly} {...handlers} />
+      ) : menu === "Kalender" ? (
+        <CalendarView tasks={tasks} canReschedule={canManage} onOpenTask={onOpenTask} onReschedule={onReschedule} />
+      ) : menu === "Timeline" ? (
+        <TimelineView tasks={tasks} onOpenTask={onOpenTask} />
       ) : (
-        <TaskTable tasks={tasks} loading={loading} userId={userId} {...handlers} />
+        <TaskTable
+          tasks={tasks}
+          loading={loading}
+          userId={userId}
+          members={members}
+          canBulk={canManage}
+          readOnly={readOnly}
+          onBulk={onBulk}
+          {...handlers}
+        />
       )}
 
       <TableFooter
@@ -84,151 +254,3 @@ export default function TasksPanel({
   );
 }
 
-function KanbanBoard({
-  tasks,
-  loading,
-  onOpenTask,
-  onStatusChange,
-}: TaskHandlers & { tasks: Task[]; loading: boolean }) {
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState<TaskStatus | null>(null);
-
-  return (
-    <div className="kanban-grid">
-      {STATUSES.map((status) => {
-        const column = tasks.filter((task) => task.status === status);
-        return (
-          <div
-            className={`kanban-column ${dragOver === status ? "drag-over" : ""}`}
-            key={status}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragOver(status);
-            }}
-            onDragLeave={() => setDragOver(null)}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragOver(null);
-              const task = tasks.find((item) => item.id === dragId);
-              setDragId(null);
-              if (task) onStatusChange(task, status);
-            }}
-          >
-            <div className="kanban-title">
-              <span>{STATUS_LABEL[status]}</span>
-              <strong>{column.length}</strong>
-            </div>
-            {loading && tasks.length === 0 && <div className="empty-projects">Memuat...</div>}
-            {column.map((task) => (
-              <article
-                className="kanban-card"
-                key={task.id}
-                draggable
-                onDragStart={() => setDragId(task.id)}
-                onDragEnd={() => {
-                  setDragId(null);
-                  setDragOver(null);
-                }}
-              >
-                <button
-                  className="kanban-card-details"
-                  type="button"
-                  onClick={() => onOpenTask(task)}
-                  aria-label={`Lihat detail tugas ${task.title}`}
-                >
-                  <strong>{task.title}</strong>
-                  <span>{task.project?.name ?? "Tanpa proyek"}</span>
-                  <span>{task.assignee?.name ?? "Belum ditetapkan"}</span>
-                  <small>
-                    {PRIORITY_LABEL[task.priority]} · {formatDate(task.dueDate)}
-                  </small>
-                  {!!task.links?.length && (
-                    <span className="kanban-link-count">↗ {task.links.length} tautan</span>
-                  )}
-                  {!!task.tags?.length && (
-                    <span className="kanban-link-count kanban-tag-count">
-                      ✎ {task.tags.length} tag
-                    </span>
-                  )}
-                </button>
-                <StatusSelect
-                  status={task.status}
-                  title={task.title}
-                  stopClick
-                  onChange={(next) => onStatusChange(task, next)}
-                />
-              </article>
-            ))}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function TaskTable({
-  tasks,
-  loading,
-  userId,
-  onOpenTask,
-  onStatusChange,
-}: TaskHandlers & { tasks: Task[]; loading: boolean; userId: string }) {
-  return (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>NAMA TUGAS</th>
-            <th>PROYEK / DIVISI</th>
-            <th>PENANGGUNG JAWAB</th>
-            <th>PRIORITAS</th>
-            <th>STATUS</th>
-            <th>TENGGAT</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <EmptyRow colSpan={6}>Memuat data dari PostgreSQL...</EmptyRow>
-          ) : tasks.length === 0 ? (
-            <EmptyRow colSpan={6}>Tidak ada tugas yang cocok dengan filter.</EmptyRow>
-          ) : (
-            tasks.map((task) => (
-              <tr key={task.id}>
-                <td>
-                  <div className="task-name">
-                    <span
-                      className={`task-indicator ${task.status === "DONE" ? "indicator-done" : ""}`}
-                    />
-                    <button type="button" className="task-title" onClick={() => onOpenTask(task)}>
-                      {task.title}
-                    </button>
-                    {task.tags?.some((tag) => tag.user.id === userId) && (
-                      <span className="task-tag-badge">Ditandai</span>
-                    )}
-                  </div>
-                </td>
-                <td>
-                  <span className="project-tag">
-                    {task.project?.name ?? task.division?.name ?? "Umum"}
-                  </span>
-                </td>
-                <td>{task.assignee?.name ?? "Belum ditetapkan"}</td>
-                <td>
-                  <PriorityBadge priority={task.priority} />
-                </td>
-                <td>
-                  <StatusSelect
-                    status={task.status}
-                    title={task.title}
-                    onChange={(next) => onStatusChange(task, next)}
-                  />
-                </td>
-                <td className="due-date">{formatDate(task.dueDate)}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}

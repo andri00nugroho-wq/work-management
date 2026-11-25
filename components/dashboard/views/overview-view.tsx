@@ -1,6 +1,8 @@
 "use client";
 
-import { percent } from "../lib/format";
+import { faArrowRight, faArrowTrendUp, faCircleCheck, faHourglassStart, faListCheck } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
+import { formatDateTime, formatRelative, initials, percent } from "../lib/format";
 import { countDone } from "../lib/tasks";
 import type { DashboardData } from "../types";
 import { Legend, Panel, ProgressBar, ProjectRow, StatCard } from "../ui";
@@ -9,10 +11,12 @@ export default function OverviewView({
   data,
   loading,
   onOpenProjects,
+  onOpenTask,
 }: {
   data: DashboardData;
   loading: boolean;
   onOpenProjects: () => void;
+  onOpenTask: (taskId: string) => void;
 }) {
   const stats = data.stats ?? {};
   const total = stats.totalTasks ?? 0;
@@ -27,28 +31,28 @@ export default function OverviewView({
           label="Total Tugas"
           value={total}
           note="Tugas sesuai hak akses"
-          icon="▤"
+          icon={faListCheck}
           color="var(--rei-accent)"
         />
         <StatCard
           label="Belum Mulai"
           value={stats.todo ?? 0}
           note="Menunggu dikerjakan"
-          icon="◷"
+          icon={faHourglassStart}
           color="var(--rei-neutral-text)"
         />
         <StatCard
           label="Sedang Berjalan"
           value={stats.inProgress ?? 0}
           note="Dalam pengerjaan"
-          icon="↗"
+          icon={faArrowTrendUp}
           color="var(--rei-orange-text)"
         />
         <StatCard
           label="Selesai"
           value={done}
           note={`${progress}% penyelesaian`}
-          icon="✓"
+          icon={faCircleCheck}
           color="var(--rei-success-text)"
         />
       </section>
@@ -111,7 +115,7 @@ export default function OverviewView({
           subtitle="Proyek yang tersedia pada data dashboard"
           aside={
             <button className="text-button" onClick={onOpenProjects}>
-              Lihat proyek →
+              Lihat proyek <Icon icon={faArrowRight} />
             </button>
           }
         >
@@ -140,6 +144,36 @@ export default function OverviewView({
           </div>
         </Panel>
       </section>
+
+      <Panel
+        className="activity-panel"
+        title="Aktivitas terbaru"
+        subtitle="Perubahan terakhir pada tugas yang bisa Anda lihat"
+      >
+        {(data.recentActivities ?? []).length === 0 ? (
+          <div className="empty-projects">{loading ? "Memuat aktivitas..." : "Belum ada aktivitas."}</div>
+        ) : (
+          <ol className="activity-list activity-feed">
+            {(data.recentActivities ?? []).map((activity) => (
+              <li key={activity.id}>
+                <span className="task-tag-avatar">{initials(activity.user.name)}</span>
+                <span className="activity-body">
+                  {activity.task ? (
+                    <button type="button" className="activity-link" onClick={() => onOpenTask(activity.task!.id)}>
+                      {activity.message}
+                    </button>
+                  ) : (
+                    <span>{activity.message}</span>
+                  )}
+                  <time dateTime={activity.createdAt} title={formatDateTime(activity.createdAt)}>
+                    {formatRelative(activity.createdAt)}
+                  </time>
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Panel>
     </>
   );
 }

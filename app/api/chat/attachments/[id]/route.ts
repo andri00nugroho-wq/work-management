@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { authorize, fail } from "@/lib/api";
+import { authorize, fail, STAFF_ROLES } from "@/lib/api";
 import { readChatFile } from "@/lib/chat-files";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -13,7 +13,7 @@ const INLINE_IMAGE_TYPES = new Set([
 ]);
 
 export async function GET(_request: Request, { params }: Ctx) {
-  const auth = await authorize();
+  const auth = await authorize(STAFF_ROLES);
   if ("response" in auth) return auth.response;
   const { id } = await params;
 

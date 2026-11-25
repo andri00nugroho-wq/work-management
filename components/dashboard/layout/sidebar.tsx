@@ -1,7 +1,9 @@
 "use client";
 
+import { faArrowRight, faEllipsis, faLifeRing, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
+import Icon from "@/components/icon";
 import ReiLogo from "@/components/rei-logo";
-import { MENU, ROLE_LABEL } from "../constants";
+import { MANAGE_ROLES, MENU, ROLE_LABEL } from "../constants";
 import { initials } from "../lib/format";
 import type { DashboardUser, MenuName } from "../types";
 
@@ -15,6 +17,7 @@ export default function Sidebar({
   onSelectMenu,
   onHelp,
   onChangePassword,
+  onIntegrations,
   onLogout,
 }: {
   user: DashboardUser;
@@ -26,6 +29,7 @@ export default function Sidebar({
   onSelectMenu: (menu: MenuName) => void;
   onHelp: () => void;
   onChangePassword: () => void;
+  onIntegrations: () => void;
   onLogout: () => void;
 }) {
   return (
@@ -56,13 +60,16 @@ export default function Sidebar({
 
       <div className="menu-label">MENU UTAMA</div>
       <nav className="navigation">
-        {MENU.map((item) => (
+        {MENU.filter(
+          (item) =>
+            (!item.manage || MANAGE_ROLES.includes(user.role)) && (!item.staff || user.role !== "GUEST")
+        ).map((item) => (
           <button
             key={item.name}
             className={`nav-item ${activeMenu === item.name ? "active" : ""}`}
             onClick={() => onSelectMenu(item.name)}
           >
-            <span className="nav-icon">{item.icon}</span>
+            <span className="nav-icon"><Icon icon={item.icon} /></span>
             <span>{item.name}</span>
             {item.name === "Tugas Saya" && <span className="nav-count">{myTasksCount}</span>}
             {item.name === "Chat" && chatUnread > 0 && (
@@ -76,10 +83,10 @@ export default function Sidebar({
 
       <div className="sidebar-bottom">
         <div className="help-card">
-          <div className="help-icon">✦</div>
+          <div className="help-icon"><Icon icon={faLifeRing} /></div>
           <strong>REI Work Management</strong>
           <p>Kelola pekerjaan, tim, dan progres dalam satu tempat.</p>
-          <button onClick={onHelp}>Pusat Bantuan →</button>
+          <button onClick={onHelp}>Pusat Bantuan <Icon icon={faArrowRight} /></button>
         </div>
 
         <div className="profile">
@@ -89,15 +96,16 @@ export default function Sidebar({
             <span>{ROLE_LABEL[user.role]}</span>
           </div>
           <button className="profile-more" aria-label="Menu profil" onClick={onToggleProfileMenu}>
-            •••
+            <Icon icon={faEllipsis} />
           </button>
         </div>
 
         {showProfileMenu && (
           <div className="profile-menu">
             <div className="profile-email">{user.email}</div>
+            <button onClick={onIntegrations}>Integrasi & kalender</button>
             <button onClick={onChangePassword}>Ganti kata sandi</button>
-            <button onClick={onLogout}>Keluar dari akun ↗</button>
+            <button onClick={onLogout}>Keluar dari akun <Icon icon={faRightFromBracket} /></button>
           </div>
         )}
       </div>

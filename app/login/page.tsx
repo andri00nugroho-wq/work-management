@@ -1,6 +1,8 @@
 "use client";
 
+import Icon from "@/components/icon";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import ReiLogo from "@/components/rei-logo";
 import { THEMES, applyTheme } from "@/lib/theme";
 import { useTheme } from "@/lib/use-theme";
@@ -12,6 +14,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const theme = useTheme();
+  const router = useRouter();
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -29,7 +33,8 @@ export default function LoginPage() {
         throw new Error(result?.message ?? "Login gagal.");
       }
 
-      window.location.href = "/";
+      router.replace("/");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Tidak dapat menghubungi server.");
       setLoading(false);
@@ -50,7 +55,7 @@ export default function LoginPage() {
               onClick={() => applyTheme(item.id)}
             >
               <span className={`theme-dot theme-dot-${item.id}`} aria-hidden="true" />
-              <span aria-hidden="true">{item.icon}</span>
+              <span aria-hidden="true"><Icon icon={item.icon} /></span>
               {item.label}
             </button>
           ))}
@@ -71,7 +76,7 @@ export default function LoginPage() {
             required
             autoComplete="email"
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
             placeholder="nama@perusahaan.com"
           />
         </label>
@@ -83,7 +88,7 @@ export default function LoginPage() {
             required
             autoComplete="current-password"
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
           />
         </label>

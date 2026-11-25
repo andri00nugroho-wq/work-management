@@ -1,4 +1,4 @@
-import type { Prisma } from "@/app/generated/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ChatMessagePayload } from "@/lib/chat-events";
 
