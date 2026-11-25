@@ -12,6 +12,7 @@ export type MenuName =
   | "Kalender"
   | "Timeline"
   | "Chat"
+  | "Panduan Pengguna"
   | "Pengaturan";
 
 export type DashboardUser = {

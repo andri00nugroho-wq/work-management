@@ -31,6 +31,7 @@ import { Alert } from "./ui";
 import OverviewView from "./views/overview-view";
 import ProjectsView from "./views/projects-view";
 import ReportsView from "./views/reports-view";
+import GuideView from "./views/guide-view";
 import SettingsView from "./views/settings-view";
 import AutomationPanel from "./views/automation-panel";
 import IntakePanel from "./views/intake-panel";
@@ -216,7 +217,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         showProfileMenu={showProfileMenu}
         onToggleProfileMenu={() => setShowProfileMenu((open) => !open)}
         onSelectMenu={switchMenu}
-        onHelp={() => ws.setNotice("Hubungi administrator jika Anda memerlukan bantuan.")}
+        onHelp={() => switchMenu("Panduan Pengguna")}
         onIntegrations={() => {
           setShowProfileMenu(false);
           setShowIntegrations(true);
@@ -249,7 +250,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
                 : null
             }
             onExport={
-              activeMenu === "Chat" || activeMenu === "Pengaturan"
+              activeMenu === "Chat" || activeMenu === "Pengaturan" || activeMenu === "Panduan Pengguna"
                 ? null
                 : () =>
                     exportMenuCsv(activeMenu, {
@@ -362,6 +363,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
           {activeMenu === "Laporan" && (
             <ReportsView report={report} loading={ws.loading} onRefresh={refresh} />
           )}
+
+          {activeMenu === "Panduan Pengguna" && <GuideView />}
 
           {activeMenu === "Chat" && (
             <ChatView

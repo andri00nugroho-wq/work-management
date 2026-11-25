@@ -33,7 +33,7 @@ export const dashboardStyles = css.global`
   .workspace-info strong, .profile-info strong { font-size: 11px; color: var(--rei-text); }
   .workspace-info span, .profile-info span { color: var(--rei-muted); font-size: 10px; }
   .menu-label { margin-bottom: 11px; }
-  .navigation { display: grid; gap: 5px; }
+  .navigation { display: grid; gap: 5px; min-height: 0; overflow-y: auto; }
   .nav-item { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 42px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--rei-muted); text-align: left; font-size: 12px; font-weight: 500; transition: transform .18s ease, background-color .2s ease, color .2s ease; }
   .nav-item:hover { background: var(--rei-surface-hover); color: var(--rei-text); }
   .nav-item:active { transform: scale(.985); }

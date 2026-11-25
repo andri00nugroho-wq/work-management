@@ -1,5 +1,6 @@
 import {
   faCalendarDays,
+  faBookOpen,
   faChartColumn,
   faChartGantt,
   faCircle,
@@ -35,6 +36,7 @@ export const MENU: Array<{ name: MenuName; icon: IconDefinition; manage?: boolea
   { name: "Tim", icon: faUsers, staff: true },
   { name: "Laporan", icon: faChartColumn },
   { name: "Chat", icon: faComments, staff: true },
+  { name: "Panduan Pengguna", icon: faBookOpen },
   { name: "Pengaturan", icon: faGear, manage: true },
 ];
 

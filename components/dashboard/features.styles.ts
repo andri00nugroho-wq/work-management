@@ -2,6 +2,22 @@ import css from "styled-jsx/css";
 
 /** Gaya fitur lanjutan (label, filter, pengaturan, riwayat, dst.). Semua warna dari token tema. */
 export const featureStyles = css.global`
+  /* ---------- Panduan pengguna ---------- */
+  .guide-content { display: grid; gap: 18px; margin-bottom: 20px; }
+  .guide-panel { min-width: 0; }
+  .guide-panel .panel-heading { align-items: center; }
+  .guide-download { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; white-space: nowrap; }
+  .guide-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0 2px; padding: 0; list-style-position: inside; }
+  .guide-steps li { min-width: 0; padding: 13px; border: 1px solid var(--rei-border); border-radius: 10px; background: var(--rei-surface-2); color: var(--rei-accent); font-size: 11px; font-weight: 800; }
+  .guide-steps li strong, .guide-steps li span { display: block; }
+  .guide-steps li strong { margin-top: 6px; color: var(--rei-heading); }
+  .guide-steps li span { margin-top: 5px; color: var(--rei-muted); font-size: 10px; font-weight: 500; line-height: 1.55; }
+  .guide-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 18px; }
+  .guide-list { display: grid; gap: 9px; margin: 15px 0 0; padding-left: 19px; color: var(--rei-text); font-size: 11px; line-height: 1.65; }
+  .guide-list li::marker { color: var(--rei-gold-text); }
+  .guide-list strong { color: var(--rei-heading); }
+  .guide-note { margin: 16px 0 0; padding: 10px 12px; border-left: 3px solid var(--rei-gold); border-radius: 0 7px 7px 0; background: var(--rei-gold-soft); color: var(--rei-text); font-size: 10px; line-height: 1.6; }
+
   /* ---------- Label ---------- */
   .label-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
   .label-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--label-color) 14%, transparent); color: color-mix(in srgb, var(--label-color) 78%, var(--rei-text)); font-size: 9px; font-weight: 700; line-height: 1.6; white-space: nowrap; }
@@ -391,12 +407,16 @@ export const featureStyles = css.global`
   .danger-text { color: var(--rei-danger-text); }
 
   @media (max-width: 1150px) {
+    .guide-grid { grid-template-columns: 1fr; }
+    .guide-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .filter-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .filter-bar-actions { grid-column: 1 / -1; }
     .settings-grid { grid-template-columns: 1fr; }
     .activity-feed { grid-template-columns: 1fr; }
   }
   @media (max-width: 800px) {
+    .guide-panel .panel-heading { align-items: stretch; flex-direction: column; }
+    .guide-download { width: 100%; justify-content: center; }
     .filter-bar { grid-template-columns: 1fr 1fr; padding: 12px; }
     .calendar, .timeline { padding: 0 12px 12px; }
     .calendar-cell { min-height: 72px; padding: 4px; }
@@ -405,5 +425,8 @@ export const featureStyles = css.global`
     .task-edit-form { grid-template-columns: 1fr; }
     .time-form { grid-template-columns: 1fr 1fr; }
     .template-options, .template-fields { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .guide-steps { grid-template-columns: 1fr; }
   }
 `;
