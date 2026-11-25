@@ -1,6 +1,6 @@
 "use client";
 
-import { faArrowRight, faEllipsis, faLifeRing, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
+import { faArrowRight, faLifeRing } from "@fortawesome/free-solid-svg-icons";
 import Icon from "@/components/icon";
 import ReiLogo from "@/components/rei-logo";
 import { MANAGE_ROLES, MENU, ROLE_LABEL } from "../constants";
@@ -12,25 +12,15 @@ export default function Sidebar({
   activeMenu,
   myTasksCount,
   chatUnread,
-  showProfileMenu,
-  onToggleProfileMenu,
   onSelectMenu,
   onHelp,
-  onChangePassword,
-  onIntegrations,
-  onLogout,
 }: {
   user: DashboardUser;
   activeMenu: MenuName;
   myTasksCount: number;
   chatUnread: number;
-  showProfileMenu: boolean;
-  onToggleProfileMenu: () => void;
   onSelectMenu: (menu: MenuName) => void;
   onHelp: () => void;
-  onChangePassword: () => void;
-  onIntegrations: () => void;
-  onLogout: () => void;
 }) {
   return (
     <aside className="sidebar">
@@ -95,19 +85,7 @@ export default function Sidebar({
             <strong>{user.name}</strong>
             <span>{ROLE_LABEL[user.role]}</span>
           </div>
-          <button className="profile-more" aria-label="Menu profil" onClick={onToggleProfileMenu}>
-            <Icon icon={faEllipsis} />
-          </button>
         </div>
-
-        {showProfileMenu && (
-          <div className="profile-menu">
-            <div className="profile-email">{user.email}</div>
-            <button onClick={onIntegrations}>Integrasi & kalender</button>
-            <button onClick={onChangePassword}>Ganti kata sandi</button>
-            <button onClick={onLogout}>Keluar dari akun <Icon icon={faRightFromBracket} /></button>
-          </div>
-        )}
       </div>
     </aside>
   );

@@ -4,10 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --webpack && node scripts/prepare-standalone.mjs",
+    "build": "next build",
     "start": "next start",
-    "start:standalone": "node .next/standalone/server.js",
-    "db:backup": "node scripts/backup-database.mjs",
     "lint": "eslint"
   },
   "dependencies": {

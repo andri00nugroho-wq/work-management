@@ -2,7 +2,8 @@ import css from "styled-jsx/css";
 
 /** Gaya global halaman login. */
 export const loginStyles = css.global`
-  body { margin: 0; background-color: var(--rei-bg); color: var(--rei-text); font-family: Arial, Helvetica, sans-serif; transition: background-color .45s ease, color .3s ease; }
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap');
+  body { margin: 0; background-color: var(--rei-bg); color: var(--rei-text); font-family: 'DM Sans', sans-serif; transition: background-color .45s ease, color .3s ease; }
 
   .login-page { position: relative; isolation: isolate; min-height: 100vh; display: grid; place-items: center; padding: 24px; overflow: hidden; }
   .login-page::before { content: ''; position: fixed; inset: -25vmax; z-index: -1; pointer-events: none; opacity: var(--rei-aura-strength); background:

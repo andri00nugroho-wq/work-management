@@ -32,6 +32,8 @@ export type TaskInput = {
 };
 
 export type MemberPatch = {
+  name?: string;
+  email?: string;
   divisionId?: string | null;
   password?: string;
   isActive?: false;

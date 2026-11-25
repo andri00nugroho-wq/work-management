@@ -214,19 +214,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         activeMenu={activeMenu}
         myTasksCount={myTasks.length}
         chatUnread={chat.unreadTotal}
-        showProfileMenu={showProfileMenu}
-        onToggleProfileMenu={() => setShowProfileMenu((open) => !open)}
         onSelectMenu={switchMenu}
         onHelp={() => switchMenu("Panduan Pengguna")}
-        onIntegrations={() => {
-          setShowProfileMenu(false);
-          setShowIntegrations(true);
-        }}
-        onChangePassword={() => {
-          setShowProfileMenu(false);
-          setShowPasswordModal(true);
-        }}
-        onLogout={logout}
       />
 
       <main className="main-content">
@@ -237,6 +226,19 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
           onOpenTask={(taskId) => void openTaskById(taskId)}
           onRefresh={refresh}
           onToggleProfileMenu={() => setShowProfileMenu((open) => !open)}
+          showProfileMenu={showProfileMenu}
+          onIntegrations={() => {
+            setShowProfileMenu(false);
+            setShowIntegrations(true);
+          }}
+          onChangePassword={() => {
+            setShowProfileMenu(false);
+            setShowPasswordModal(true);
+          }}
+          onLogout={() => {
+            setShowProfileMenu(false);
+            void logout();
+          }}
         />
 
         <div className="page-content">

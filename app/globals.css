@@ -329,8 +329,8 @@
   --color-foreground: var(--rei-text);
   --color-primary: var(--rei-accent);
   --color-gold: var(--rei-gold);
-  --font-sans: Arial, Helvetica, sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 html {

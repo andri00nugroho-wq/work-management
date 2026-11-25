@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { authorize, fail, readJson, oneOf, ADMIN_ROLES, ROLES } from "@/lib/api";
+import { authorize, fail, readJson, oneOf, ADMIN_ROLES, MANAGE_ROLES, ROLES } from "@/lib/api";
 import type { Prisma } from "@/app/generated/prisma/client";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -15,14 +15,19 @@ const PUBLIC_USER = {
   weeklyCapacityHours: true,
 } as const;
 
-/** Admin: ubah peran, divisi, reset kata sandi, atau nonaktifkan akun. */
+/** Manajemen dapat mengubah nama/email; aksi sensitif tetap khusus Admin. */
 export async function PATCH(request: Request, { params }: Ctx) {
-  const auth = await authorize(ADMIN_ROLES);
+  const auth = await authorize(MANAGE_ROLES);
   if ("response" in auth) return auth.response;
   const { user } = auth;
   const { id } = await params;
 
   const body = await readJson(request);
+
+  const adminOnlyFields = ["role", "divisionId", "password", "weeklyCapacityHours", "isActive"];
+  if (adminOnlyFields.some((field) => body[field] !== undefined) && !ADMIN_ROLES.includes(user.role)) {
+    return fail("Hanya Admin yang dapat mengubah peran, divisi, kapasitas, kata sandi, atau status akun.", 403);
+  }
 
   try {
     const target = await prisma.user.findFirst({
@@ -37,6 +42,20 @@ export async function PATCH(request: Request, { params }: Ctx) {
     }
 
     const data: Prisma.UserUncheckedUpdateInput = {};
+
+    if (body.name !== undefined) {
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (!name || name.length > 120) return fail("Nama wajib diisi dan maksimal 120 karakter.");
+      data.name = name;
+    }
+
+    if (body.email !== undefined) {
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail("Format email tidak valid.");
+      const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+      if (existing && existing.id !== id) return fail("Email sudah digunakan pengguna lain.", 409);
+      data.email = email;
+    }
 
     if (body.role !== undefined) {
       if (!oneOf(ROLES, body.role)) return fail("Peran tidak valid.");

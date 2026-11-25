@@ -1,13 +1,14 @@
 "use client";
 
-import { faKey, faUserSlash } from "@fortawesome/free-solid-svg-icons";
+import { useState } from "react";
+import { faKey, faPen, faUserSlash } from "@fortawesome/free-solid-svg-icons";
 import Icon from "@/components/icon";
-import { ROLES, ROLE_LABEL } from "../constants";
+import { MANAGE_ROLES, ROLES, ROLE_LABEL } from "../constants";
 import type { MemberPatch } from "../hooks/use-workspace";
 import { initials } from "../lib/format";
 import { countDone, formatMinutes, tasksOfMember, workloadOf } from "../lib/tasks";
 import type { DashboardUser, Division, Member, Task, UserRole } from "../types";
-import { EmptyRow, Panel, TableFooter } from "../ui";
+import { EmptyRow, Modal, ModalHeading, Panel, TableFooter } from "../ui";
 
 export default function TeamView({
   user,
@@ -30,6 +31,32 @@ export default function TeamView({
   onUpdateMember: (member: Member, patch: MemberPatch, success: string) => void;
   onRefresh: () => void;
 }) {
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const canManageUsers = MANAGE_ROLES.includes(user.role);
+
+  function openEdit(member: Member) {
+    setEditingMember(member);
+    setEditName(member.name);
+    setEditEmail(member.email);
+  }
+
+  function saveEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingMember) return;
+    const name = editName.trim();
+    const email = editEmail.trim();
+    if (!name || !email) return;
+    const patch: MemberPatch = {};
+    if (name !== editingMember.name) patch.name = name;
+    if (email.toLowerCase() !== editingMember.email.toLowerCase()) patch.email = email;
+    if (Object.keys(patch).length) {
+      onUpdateMember(editingMember, patch, `Data ${editingMember.name} berhasil diperbarui.`);
+    }
+    setEditingMember(null);
+  }
+
   function resetPassword(member: Member) {
     const password = window.prompt(
       `Kata sandi baru untuk ${member.name} (minimal 8 karakter). Semua sesi ${member.name} akan diakhiri.`
@@ -47,7 +74,7 @@ export default function TeamView({
     onUpdateMember(member, { isActive: false }, `Akun ${member.name} dinonaktifkan.`);
   }
 
-  const colSpan = canAdmin ? 8 : 7;
+  const colSpan = canManageUsers ? 8 : 7;
   const overloaded = members.filter((member) => workloadOf(member, allTasks).overloaded).length;
   return (
     <Panel
@@ -73,7 +100,7 @@ export default function TeamView({
               <th>TUGAS</th>
               <th>SELESAI</th>
               <th>BEBAN KERJA</th>
-              {canAdmin && <th aria-label="Aksi" />}
+              {canManageUsers && <th aria-label="Aksi" />}
             </tr>
           </thead>
           <tbody>
@@ -158,9 +185,20 @@ export default function TeamView({
                         }
                       />
                     </td>
-                    {canAdmin && (
+                    {canManageUsers && (
                       <td className="row-actions">
                         {(member.role !== "SUPER_ADMIN" || user.role === "SUPER_ADMIN") && (
+                          <button
+                            type="button"
+                            className="icon-action"
+                            title="Edit pengguna"
+                            aria-label={`Edit pengguna ${member.name}`}
+                            onClick={() => openEdit(member)}
+                          >
+                            <Icon icon={faPen} />
+                          </button>
+                        )}
+                        {canAdmin && (member.role !== "SUPER_ADMIN" || user.role === "SUPER_ADMIN") && (
                           <button
                             type="button"
                             className="icon-action"
@@ -171,7 +209,7 @@ export default function TeamView({
                             <Icon icon={faKey} />
                           </button>
                         )}
-                        {member.id !== user.id &&
+                        {canAdmin && member.id !== user.id &&
                           (member.role !== "SUPER_ADMIN" || user.role === "SUPER_ADMIN") && (
                             <button
                               type="button"
@@ -194,6 +232,27 @@ export default function TeamView({
       </div>
 
       <TableFooter label={`Menampilkan ${members.length} anggota`} onRefresh={onRefresh} />
+      {editingMember && (
+        <Modal onClose={() => setEditingMember(null)}>
+          <section className="task-modal small-modal" role="dialog" aria-modal="true" aria-labelledby="member-edit-title">
+            <ModalHeading eyebrow="PENGGUNA" title="Edit pengguna" titleId="member-edit-title" onClose={() => setEditingMember(null)} />
+            <form className="form-grid single-column" onSubmit={saveEdit}>
+              <label>
+                Nama lengkap
+                <input required maxLength={120} value={editName} onChange={(event) => setEditName(event.target.value)} />
+              </label>
+              <label>
+                Email
+                <input required type="email" value={editEmail} onChange={(event) => setEditEmail(event.target.value)} />
+              </label>
+              <div className="task-modal-actions">
+                <button type="button" className="secondary-button" onClick={() => setEditingMember(null)}>Batal</button>
+                <button className="primary-button">Simpan perubahan</button>
+              </div>
+            </form>
+          </section>
+        </Modal>
+      )}
     </Panel>
   );
 }

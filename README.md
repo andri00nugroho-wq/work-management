@@ -2,8 +2,6 @@
 
 Aplikasi internal untuk mengelola pekerjaan, proyek, tim, dan progres Raja Emas Indonesia.
 
-Lihat [Panduan Pengguna REI Work Management](Panduan%20Pengguna%20REI%20Work%20Management.docx) untuk langkah penggunaan aplikasi.
-
 ## Fitur
 
 **Perencanaan & struktur tugas**

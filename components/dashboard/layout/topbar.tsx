@@ -1,6 +1,6 @@
 "use client";
 
-import { faRotateRight } from "@fortawesome/free-solid-svg-icons";
+import { faRightFromBracket, faRotateRight } from "@fortawesome/free-solid-svg-icons";
 import Icon from "@/components/icon";
 import { initials } from "../lib/format";
 import type { Notifications } from "../hooks/use-notifications";
@@ -16,6 +16,10 @@ export default function Topbar({
   onRefresh,
   onOpenTask,
   onToggleProfileMenu,
+  showProfileMenu,
+  onIntegrations,
+  onChangePassword,
+  onLogout,
 }: {
   user: DashboardUser;
   activeMenu: MenuName;
@@ -23,6 +27,10 @@ export default function Topbar({
   onRefresh: () => void;
   onOpenTask: (taskId: string) => void;
   onToggleProfileMenu: () => void;
+  showProfileMenu: boolean;
+  onIntegrations: () => void;
+  onChangePassword: () => void;
+  onLogout: () => void;
 }) {
   return (
     <header className="topbar">
@@ -48,9 +56,28 @@ export default function Topbar({
         >
           <Icon icon={faRotateRight} />
         </button>
-        <button className="topbar-avatar" title={user.name} onClick={onToggleProfileMenu}>
-          {initials(user.name)}
-        </button>
+        <div className="topbar-profile">
+          <button
+            className="topbar-avatar"
+            title={user.name}
+            aria-label="Menu profil"
+            aria-expanded={showProfileMenu}
+            onClick={onToggleProfileMenu}
+          >
+            {initials(user.name)}
+          </button>
+          {showProfileMenu && (
+            <div className="profile-menu topbar-profile-menu">
+              <div className="profile-email">
+                <strong>{user.name}</strong>
+                <span>{user.email}</span>
+              </div>
+              <button onClick={onIntegrations}>Integrasi & kalender</button>
+              <button onClick={onChangePassword}>Ganti kata sandi</button>
+              <button onClick={onLogout}>Keluar dari akun <Icon icon={faRightFromBracket} /></button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
